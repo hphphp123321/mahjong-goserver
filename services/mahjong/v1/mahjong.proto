@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+option go_package = "services.mahjong.v1";
+//option java_multiple_files = true;
+//option java_package = "io.grpc.examples.mahjong";
+//option java_outer_classname = "MahjongProto";
+
+package mahjong;
+
+service Mahjong {
+  rpc ping (PingRequest) returns (PingReply) {}
+
+  rpc Login (LoginRequest) returns (LoginReply) {}
+
+  rpc CreateRoom (CreateRoomRequest) returns (CreateRoomReply) {}
+
+  rpc JoinRoom (JoinRoomRequest) returns (JoinRoomReply) {}
+
+  rpc LeaveRoom (LeaveRoomRequest) returns (LeaveRoomReply) {}
+
+  rpc GetReady (GetReadyRequest) returns (GetReadyReply) {}
+
+  rpc CancelReady (CancelReadyRequest) returns (CancelReadyReply) {}
+
+  rpc Start (stream StartRequest) returns (stream StartReply) {}
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingReply {
+  string message = 1;
+}
+
+message LoginRequest {
+  string playerName = 1;
+}
+
+message LoginReply {
+  string message = 1;
+  string token = 2;
+}
+
+message CreateRoomRequest {
+  string token = 1;
+}
+
+message CreateRoomReply {
+  string message = 1;
+  string roomID = 2;
+}
+
+message JoinRoomRequest {
+  string token = 1;
+  string roomID = 2;
+}
+
+message JoinRoomReply {
+  string message = 1;
+}
+
+message LeaveRoomRequest {
+  string token = 1;
+  string roomID = 2;
+}
+
+message LeaveRoomReply {
+  string message = 1;
+}
+
+message GetReadyRequest {
+  string token = 1;
+}
+
+message GetReadyReply {
+  string message = 1;
+}
+
+message CancelReadyRequest {
+  string token = 1;
+}
+
+message CancelReadyReply {
+  string message = 1;
+}
+
+message StartRequest {
+  string token = 1;
+  string message = 2;
+}
+
+message StartReply {
+  string message = 1;
+}
