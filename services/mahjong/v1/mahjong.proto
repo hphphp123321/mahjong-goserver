@@ -1,14 +1,11 @@
 syntax = "proto3";
 
 option go_package = "services.mahjong.v1";
-//option java_multiple_files = true;
-//option java_package = "io.grpc.examples.mahjong";
-//option java_outer_classname = "MahjongProto";
 
 package mahjong;
 
 service Mahjong {
-  rpc ping (PingRequest) returns (PingReply) {}
+  rpc Ping (PingRequest) returns (PingReply) {}
 
   rpc Login (LoginRequest) returns (LoginReply) {}
 
@@ -16,11 +13,9 @@ service Mahjong {
 
   rpc JoinRoom (JoinRoomRequest) returns (JoinRoomReply) {}
 
-  rpc LeaveRoom (LeaveRoomRequest) returns (LeaveRoomReply) {}
+  rpc RefreshRoom (RefreshRoomRequest) returns (RefreshRoomReply) {}
 
-  rpc GetReady (GetReadyRequest) returns (GetReadyReply) {}
-
-  rpc CancelReady (CancelReadyRequest) returns (CancelReadyReply) {}
+  rpc Ready (stream ReadyRequest) returns (stream ReadyReply) {}
 
   rpc Start (stream StartRequest) returns (stream StartReply) {}
 }
@@ -39,20 +34,27 @@ message LoginRequest {
 
 message LoginReply {
   string message = 1;
-  string token = 2;
+}
+
+message Room{
+  string roomID = 1;
+  string roomName = 2;
+  int32 playerCount = 3;
+  string masterName = 4;
 }
 
 message CreateRoomRequest {
-  string token = 1;
+  string playerName = 1;
+  string roomName = 2;
 }
 
 message CreateRoomReply {
   string message = 1;
-  string roomID = 2;
+  Room room = 2;
 }
 
 message JoinRoomRequest {
-  string token = 1;
+  string playerName = 1;
   string roomID = 2;
 }
 
@@ -60,36 +62,132 @@ message JoinRoomReply {
   string message = 1;
 }
 
-message LeaveRoomRequest {
-  string token = 1;
-  string roomID = 2;
+message RefreshRoomRequest {
+  string playerName = 1;
+  optional string roomName = 2;
 }
 
-message LeaveRoomReply {
+message RefreshRoomReply {
   string message = 1;
+  repeated Room rooms = 2;
 }
 
-message GetReadyRequest {
-  string token = 1;
+message ReadyRequest {
+  string playerName = 1;
+  oneof message {
+    string getReady = 2;
+    string cancelReady = 3;
+    AddRobotRequest addRobot = 4;
+    RemovePlayerRequest removePlayer = 5;
+    LeaveRoomRequest leaveRoom = 6;
+  }
 }
 
-message GetReadyReply {
-  string message = 1;
-}
-
-message CancelReadyRequest {
-  string token = 1;
-}
-
-message CancelReadyReply {
-  string message = 1;
+message ReadyReply {
+  oneof message {
+    string getReadyReply = 1;
+    string cancelReadyReply = 2;
+    string addRobotReply = 3;
+    string removePlayerReply = 4;
+    string startGame = 5;
+    string leaveRoomReply = 6;
+  }
 }
 
 message StartRequest {
-  string token = 1;
-  string message = 2;
+  string playerName = 1;
+  oneof message {
+    string ping = 2;
+    Action action = 3;
+    string next = 4;
+  }
 }
 
 message StartReply {
-  string message = 1;
+  oneof message {
+    string pong = 1;
+    DrawMsg draw = 2;
+    DiscardMsg discard = 3;
+    CallMsg call = 5;
+    string gameStart = 6;
+    GameInitInfo gameInitInfo = 7;
+  }
+  repeated Action validActions = 4;
 }
+
+message LeaveRoomRequest {
+  string playerName = 1;
+  string roomID = 2;
+}
+
+message AddRobotRequest {
+  string playerName = 1;
+  string roomID = 2;
+  string robotPos = 3;
+  string robotLevel = 4;
+}
+
+message RemovePlayerRequest {
+  string playerName = 1;
+  string roomID = 2;
+  string playerPos = 3;
+}
+
+
+enum ActionType{
+    Skip = 0;
+    Discard = 1;
+    Chi = 2;
+    Pon = 3;
+    DaiMinKan = 4;
+    ShouMinKan = 5;
+    AnKan = 6;
+    Riichi = 7;
+    Ron = 8;
+    Tsumo = 9;
+    KyuShuKyuHai = 10;
+    ChanKan = 11;
+}
+
+message Action {
+  ActionType type = 1;
+  repeated int32 tiles = 2;
+  repeated int32 fromWho = 3;
+}
+
+
+enum Wind {
+  East = 0;
+  South = 1;
+  West = 2;
+  North = 3;
+}
+
+message GameInitInfo {
+  Wind wind = 1;
+  int32 dora = 2;
+  repeated int32 tiles = 3;
+  int32 windRound = 4;  // 东一、二、三、四；南一、二、三、四...
+  int32 roundNumber = 5;
+  int32 riichiNum = 6; // 立直棒个数
+  int32 honbaNum = 7;  // 本场数
+}
+
+message DrawMsg {
+  int32 who = 1;
+  optional int32 tile = 2;
+}
+
+message DiscardMsg {
+  int32 who = 1;
+  int32 tile = 2;
+}
+
+message CallMsg {
+  ActionType type = 1;
+  int32 who = 2;
+  optional int32 fromWho = 3;
+  repeated int32 tilesOnHand = 4;
+  optional int32 tileCalled = 5;
+}
+
