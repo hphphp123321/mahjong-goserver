@@ -9,6 +9,8 @@ service Mahjong {
 
   rpc Login (LoginRequest) returns (LoginReply) {}
 
+  rpc Logout (LogoutRequest) returns (LogoutReply) {}
+
   rpc CreateRoom (CreateRoomRequest) returns (CreateRoomReply) {}
 
   rpc JoinRoom (JoinRoomRequest) returns (JoinRoomReply) {}
@@ -34,18 +36,43 @@ message LoginRequest {
 
 message LoginReply {
   string message = 1;
+  string token = 2;
+  optional ReconnectInfo reconnectInfo = 3;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message LogoutReply {
+  string message = 1;
+}
+
+message ReconnectInfo {
+  string roomID = 1;
+  GameInfo gameInfo = 2;
+  repeated int32 handTiles = 3;
+  repeated  PlayerInfo playerInfos = 4;
+}
+
+message PlayerInfo{
+  string playerName = 1;
+  Wind playerWind = 2;
+  int32 playerPoints = 3;
+  repeated int32 boardTiles = 4;
+  repeated Action actions = 5;
+  bool isRiichi = 6;
 }
 
 message Room{
   string roomID = 1;
   string roomName = 2;
   int32 playerCount = 3;
-  string masterName = 4;
+  string ownerName = 4;
 }
 
 message CreateRoomRequest {
-  string playerName = 1;
-  string roomName = 2;
+  string roomName = 1;
 }
 
 message CreateRoomReply {
@@ -54,17 +81,16 @@ message CreateRoomReply {
 }
 
 message JoinRoomRequest {
-  string playerName = 1;
-  string roomID = 2;
+  string roomID = 1;
 }
 
 message JoinRoomReply {
   string message = 1;
+  Room room = 2;
 }
 
 message RefreshRoomRequest {
-  string playerName = 1;
-  optional string roomName = 2;
+  optional string roomName = 1;
 }
 
 message RefreshRoomReply {
@@ -73,33 +99,32 @@ message RefreshRoomReply {
 }
 
 message ReadyRequest {
-  string playerName = 1;
   oneof message {
-    string getReady = 2;
-    string cancelReady = 3;
+    GetReadyRequest getReady = 2;
+    CancelReadyRequest cancelReady = 3;
     AddRobotRequest addRobot = 4;
     RemovePlayerRequest removePlayer = 5;
     LeaveRoomRequest leaveRoom = 6;
   }
 }
 
+
 message ReadyReply {
   oneof message {
-    string getReadyReply = 1;
-    string cancelReadyReply = 2;
-    string addRobotReply = 3;
-    string removePlayerReply = 4;
-    string startGame = 5;
-    string leaveRoomReply = 6;
+    GetReadyReply getReadyReply = 1;
+    CancelReadyReply cancelReadyReply = 2;
+    AddRobotReply addRobotReply = 3;
+    RemovePlayerReply removePlayerReply = 4;
+    StartGameReply startGameReply = 5;
+    LeaveRoomReply leaveRoomReply = 6;
   }
 }
 
 message StartRequest {
-  string playerName = 1;
   oneof message {
-    string ping = 2;
-    Action action = 3;
-    string next = 4;
+    string ping = 1;
+    Action action = 2;
+    string next = 3;
   }
 }
 
@@ -110,27 +135,22 @@ message StartReply {
     DiscardMsg discard = 3;
     CallMsg call = 5;
     string gameStart = 6;
-    GameInitInfo gameInitInfo = 7;
+    GameInfo gameInitInfo = 7;
   }
   repeated Action validActions = 4;
 }
 
 message LeaveRoomRequest {
-  string playerName = 1;
-  string roomID = 2;
+  string roomID = 1;
 }
 
 message AddRobotRequest {
-  string playerName = 1;
-  string roomID = 2;
-  string robotPos = 3;
-  string robotLevel = 4;
+  int32 robotPos = 1;
+  string robotLevel = 2;
 }
 
 message RemovePlayerRequest {
-  string playerName = 1;
-  string roomID = 2;
-  string playerPos = 3;
+  int32 playerPos = 1;
 }
 
 
@@ -152,20 +172,20 @@ enum ActionType{
 message Action {
   ActionType type = 1;
   repeated int32 tiles = 2;
-  repeated int32 fromWho = 3;
+  repeated Wind fromWho = 3;
 }
 
 
 enum Wind {
-  East = 0;
-  South = 1;
-  West = 2;
-  North = 3;
+  East = 0; // 东
+  South = 1; // 南
+  West = 2; // 西
+  North = 3; // 北
 }
 
-message GameInitInfo {
+message GameInfo {
   Wind wind = 1;
-  int32 dora = 2;
+  repeated int32 dora = 2;
   repeated int32 tiles = 3;
   int32 windRound = 4;  // 东一、二、三、四；南一、二、三、四...
   int32 roundNumber = 5;
@@ -174,20 +194,57 @@ message GameInitInfo {
 }
 
 message DrawMsg {
-  int32 who = 1;
+  Wind who = 1;
   optional int32 tile = 2;
 }
 
 message DiscardMsg {
-  int32 who = 1;
+  Wind who = 1;
   int32 tile = 2;
+  bool  tsumoGiri = 3;
 }
 
 message CallMsg {
   ActionType type = 1;
-  int32 who = 2;
-  optional int32 fromWho = 3;
+  Wind who = 2;
+  optional Wind fromWho = 3;
   repeated int32 tilesOnHand = 4;
   optional int32 tileCalled = 5;
 }
 
+message GetReadyReply{
+  int32 who = 1;
+  string message = 2;
+}
+
+message CancelReadyReply{
+  int32 who = 1;
+  string message = 2;
+}
+
+message AddRobotReply{
+  int32 robotPos = 1;
+  string robotLevel = 2;
+}
+
+message RemovePlayerReply{
+  int32 who = 1;
+  string message = 2;
+}
+
+message StartGameReply{
+  string message = 1;
+}
+
+message LeaveRoomReply{
+  int32 who = 1;
+  string message = 2;
+}
+
+message GetReadyRequest {
+  string message = 1;
+}
+
+message CancelReadyRequest {
+  string message = 1;
+}
