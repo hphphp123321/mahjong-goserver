@@ -87,6 +87,7 @@ message JoinRoomRequest {
 message JoinRoomReply {
   string message = 1;
   Room room = 2;
+  int32 seat = 3;
 }
 
 message RefreshRoomRequest {
@@ -99,7 +100,7 @@ message RefreshRoomReply {
 }
 
 message ReadyRequest {
-  oneof message {
+  oneof request {
     GetReadyRequest getReady = 2;
     CancelReadyRequest cancelReady = 3;
     AddRobotRequest addRobot = 4;
@@ -108,20 +109,20 @@ message ReadyRequest {
   }
 }
 
-
 message ReadyReply {
-  oneof message {
-    GetReadyReply getReadyReply = 1;
-    CancelReadyReply cancelReadyReply = 2;
-    AddRobotReply addRobotReply = 3;
-    RemovePlayerReply removePlayerReply = 4;
-    StartGameReply startGameReply = 5;
-    LeaveRoomReply leaveRoomReply = 6;
+  string message  = 1;
+  oneof reply {
+    PlayerJoinReply playerJoinReply = 2;
+    GetReadyReply getReadyReply = 3;
+    CancelReadyReply cancelReadyReply = 4;
+    AddRobotReply addRobotReply = 5;
+    PlayerLeaveReply removePlayerReply = 6;
+    StartGameReply startGameReply = 7;
   }
 }
 
 message StartRequest {
-  oneof message {
+  oneof request {
     string ping = 1;
     Action action = 2;
     string next = 3;
@@ -129,13 +130,14 @@ message StartRequest {
 }
 
 message StartReply {
-  oneof message {
-    string pong = 1;
-    DrawMsg draw = 2;
-    DiscardMsg discard = 3;
-    CallMsg call = 5;
-    string gameStart = 6;
-    GameInfo gameInitInfo = 7;
+  string message = 1;
+  oneof reply {
+    string pong = 2;
+    DrawMsg draw = 3;
+    DiscardMsg discard = 5;
+    CallMsg call = 6;
+    string gameStart = 7;
+    GameInfo gameInitInfo = 8;
   }
   repeated Action validActions = 4;
 }
@@ -145,12 +147,12 @@ message LeaveRoomRequest {
 }
 
 message AddRobotRequest {
-  int32 robotPos = 1;
+  int32 robotSeat = 1;
   string robotLevel = 2;
 }
 
 message RemovePlayerRequest {
-  int32 playerPos = 1;
+  int32 playerSeat = 1;
 }
 
 
@@ -213,32 +215,33 @@ message CallMsg {
 }
 
 message GetReadyReply{
-  int32 who = 1;
-  string message = 2;
+  int32 seat = 1;
+  string playerName = 2;
 }
 
 message CancelReadyReply{
-  int32 who = 1;
-  string message = 2;
+  int32 seat = 1;
+  string playerName = 2;
 }
 
 message AddRobotReply{
-  int32 robotPos = 1;
+  int32 robotSeat = 1;
   string robotLevel = 2;
 }
 
-message RemovePlayerReply{
-  int32 who = 1;
-  string message = 2;
+message PlayerJoinReply{
+  int32 seat = 1;
+  string playerName = 2;
+}
+
+message PlayerLeaveReply{
+  int32 seat = 1;
+  int32 ownerSeat = 2;
+  string playerName = 3;
 }
 
 message StartGameReply{
   string message = 1;
-}
-
-message LeaveRoomReply{
-  int32 who = 1;
-  string message = 2;
 }
 
 message GetReadyRequest {
