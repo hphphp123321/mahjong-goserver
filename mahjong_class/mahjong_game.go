@@ -1,6 +1,7 @@
 package mahjong
 
 import (
+	"mahjong-goserver/common"
 	"sort"
 )
 
@@ -140,7 +141,7 @@ func (game *MahjongGame) DiscardTileProcess(pMain *MahjongPlayer, tileID int) {
 		pMain.TenhaiSlice = pMain.GetTenhaiSlice()
 		flag := false
 		for _, tile := range pMain.DiscardTiles {
-			if Contain(tile/4, pMain.TenhaiSlice) {
+			if common.Contain(tile/4, pMain.TenhaiSlice) {
 				flag = true
 			}
 		}
@@ -152,7 +153,7 @@ func (game *MahjongGame) DiscardTileProcess(pMain *MahjongPlayer, tileID int) {
 	}
 	otherWinds := game.getOtherWinds()
 	for _, wind := range otherWinds {
-		if Contain(tileID/4, game.PosPlayer[wind].TenhaiSlice) {
+		if common.Contain(tileID/4, game.PosPlayer[wind].TenhaiSlice) {
 			game.PosPlayer[wind].FuritenStatus = true
 		} else {
 			game.PosPlayer[wind].FuritenStatus = false
@@ -237,7 +238,7 @@ func (game *MahjongGame) processChi(pMain *MahjongPlayer, call Call) {
 	tile2Class := call.CallTiles[1] / 4
 	posClass := make(Tiles, 0, 4)
 	if tile1Class-tile2Class == 1 || tile2Class-tile1Class == 1 {
-		if !Contain(tile1Class, []int{0, 9, 18, 8, 17, 26}) && !Contain(tile2Class, []int{0, 9, 18, 8, 17, 26}) {
+		if !common.Contain(tile1Class, []int{0, 9, 18, 8, 17, 26}) && !common.Contain(tile2Class, []int{0, 9, 18, 8, 17, 26}) {
 			posClass = Tiles{tile1Class - 1, tile1Class + 1, tile2Class - 1, tile2Class + 1}
 			posClass = posClass.Remove(tileClass)
 			posClass = posClass.Remove(tile1Class)
@@ -246,7 +247,7 @@ func (game *MahjongGame) processChi(pMain *MahjongPlayer, call Call) {
 	}
 	posClass = append(posClass, tileClass)
 	for _, tile := range pMain.HandTiles {
-		if Contain(tile/4, posClass) {
+		if common.Contain(tile/4, posClass) {
 			game.Tiles.allTiles[tile].discardable = false
 		} else {
 			game.Tiles.allTiles[tile].discardable = true
@@ -339,22 +340,22 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 		return make(Calls, 0)
 	}
 	handTilesClass := Tiles(pMain.GetHandTilesClass())
-	if !(Contain(chiClass-1, handTilesClass) ||
-		Contain(chiClass-2, handTilesClass) ||
-		Contain(chiClass+1, handTilesClass) ||
-		Contain(chiClass+2, handTilesClass)) {
+	if !(common.Contain(chiClass-1, handTilesClass) ||
+		common.Contain(chiClass-2, handTilesClass) ||
+		common.Contain(chiClass+1, handTilesClass) ||
+		common.Contain(chiClass+2, handTilesClass)) {
 		return make(Calls, 0)
 	}
 	var posCombinations [][]int
-	if Contain(chiClass, []int{0, 9, 18}) {
+	if common.Contain(chiClass, []int{0, 9, 18}) {
 		posCombinations = append(posCombinations, []int{chiClass + 1, chiClass + 2})
-	} else if Contain(chiClass, []int{1, 10, 19}) {
+	} else if common.Contain(chiClass, []int{1, 10, 19}) {
 		posCombinations = append(posCombinations, []int{chiClass - 1, chiClass + 1})
 		posCombinations = append(posCombinations, []int{chiClass + 1, chiClass + 2})
-	} else if Contain(chiClass, []int{7, 16, 25}) {
+	} else if common.Contain(chiClass, []int{7, 16, 25}) {
 		posCombinations = append(posCombinations, []int{chiClass - 1, chiClass + 1})
 		posCombinations = append(posCombinations, []int{chiClass - 2, chiClass - 1})
-	} else if Contain(chiClass, []int{8, 17, 26}) {
+	} else if common.Contain(chiClass, []int{8, 17, 26}) {
 		posCombinations = append(posCombinations, []int{chiClass - 2, chiClass - 1})
 	} else {
 		posCombinations = append(posCombinations, []int{chiClass - 1, chiClass + 1})
@@ -365,7 +366,7 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 	for _, posCom := range posCombinations {
 		tile1Class := posCom[0]
 		tile2Class := posCom[1]
-		if !(Contain(tile1Class, handTilesClass) && Contain(tile2Class, handTilesClass)) {
+		if !(common.Contain(tile1Class, handTilesClass) && common.Contain(tile2Class, handTilesClass)) {
 			continue
 		}
 		tile1Idx1 := handTilesClass.Index(tile1Class, 0)
@@ -378,7 +379,7 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 			CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
 		}
 		posCalls = append(posCalls, posCall)
-		if Contain(tile1ID, []int{16, 52, 88}) {
+		if common.Contain(tile1ID, []int{16, 52, 88}) {
 			tile1Idx2 := handTilesClass.Index(tile1Class, tile1Idx1+1)
 			if tile1Idx2 != -1 {
 				tile1ID = pMain.HandTiles[tile1Idx2]
@@ -389,7 +390,7 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 				}
 				posCalls = append(posCalls, posCall)
 			}
-		} else if Contain(tile2ID, []int{16, 52, 88}) {
+		} else if common.Contain(tile2ID, []int{16, 52, 88}) {
 			tile2Idx2 := handTilesClass.Index(tile2Class, tile2Idx1+1)
 			if tile2Idx2 != -1 {
 				tile2ID = pMain.HandTiles[tile2Idx2]
@@ -420,7 +421,7 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 		tile2Class := tile2ID / 4
 		posClass := make(Tiles, 0, 4)
 		if tile1Class-tile2Class == 1 || tile2Class-tile1Class == 1 {
-			if !Contain(tile1Class, []int{0, 9, 18, 8, 17, 26}) && !Contain(tile2Class, []int{0, 9, 18, 8, 17, 26}) {
+			if !common.Contain(tile1Class, []int{0, 9, 18, 8, 17, 26}) && !common.Contain(tile2Class, []int{0, 9, 18, 8, 17, 26}) {
 				posClass = Tiles{tile1Class - 1, tile1Class + 1, tile2Class - 1, tile2Class + 1}
 				posClass = posClass.Remove(tileClass)
 				posClass = posClass.Remove(tile1Class)
@@ -430,7 +431,7 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 		posClass = append(posClass, tileClass)
 		flag := true
 		for _, handTIlesID := range pMain.HandTiles {
-			if !Contain(handTIlesID/4, posClass) {
+			if !common.Contain(handTIlesID/4, posClass) {
 				flag = false
 			}
 		}
@@ -473,21 +474,21 @@ func (game *MahjongGame) judgePon(pMain *MahjongPlayer, tileID int) Calls {
 			panic("no tile3")
 		}
 		tile3ID := pMain.HandTiles[tile3Idx]
-		if Contain(tile1ID, []int{16, 52, 88}) {
+		if common.Contain(tile1ID, []int{16, 52, 88}) {
 			posCall = Call{
 				CallType:         Pon,
 				CallTiles:        Tiles{tile2ID, tile3ID, tileID, -1},
 				CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
 			}
 			posCalls = append(posCalls, posCall)
-		} else if Contain(tile2ID, []int{16, 52, 88}) {
+		} else if common.Contain(tile2ID, []int{16, 52, 88}) {
 			posCall = Call{
 				CallType:         Pon,
 				CallTiles:        Tiles{tile1ID, tile3ID, tileID, -1},
 				CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
 			}
 			posCalls = append(posCalls, posCall)
-		} else if Contain(tile3ID, []int{16, 52, 88}) {
+		} else if common.Contain(tile3ID, []int{16, 52, 88}) {
 			posCall = Call{
 				CallType:         Pon,
 				CallTiles:        Tiles{tile1ID, tile3ID, tileID, -1},
@@ -513,9 +514,9 @@ func (game *MahjongGame) judgeDaiMinKan(pMain *MahjongPlayer, tileID int) Calls 
 	tile0 := posKanTiles[0]
 	tile1 := posKanTiles[1]
 	tile2 := posKanTiles[2]
-	if !Contain(tile0, pMain.HandTiles) ||
-		!Contain(tile1, pMain.HandTiles) ||
-		!Contain(tile2, pMain.HandTiles) {
+	if !common.Contain(tile0, pMain.HandTiles) ||
+		!common.Contain(tile1, pMain.HandTiles) ||
+		!common.Contain(tile2, pMain.HandTiles) {
 		return make(Calls, 0)
 	}
 	var posCalls Calls
@@ -536,7 +537,7 @@ func (game *MahjongGame) judgeAnKan(pMain *MahjongPlayer) Calls {
 	var posClass []int
 	var posCalls = make(Calls, 0)
 	for _, tileClass := range tilesClass {
-		if Contain(tileClass, posClass) {
+		if common.Contain(tileClass, posClass) {
 			continue
 		}
 		if tilesClass.Count(tileClass) == 4 {

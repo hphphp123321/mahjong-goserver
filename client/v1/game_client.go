@@ -37,14 +37,14 @@ func NewMahjongClient(ctx context.Context, playerName string, grpcClient pb.Mahj
 
 func (c *MahjongClient) Ping() error {
 	start := time.Now()
-	pingReply, err := c.Client.Ping(c.Ctx, &pb.PingRequest{Message: "ping"})
+	_, err := c.Client.Ping(c.Ctx, &pb.PingRequest{Message: "ping"})
 	end := time.Now()
 	usedTime := end.Sub(start)
 	c.Delay = usedTime
 	if err != nil {
 		return err
 	}
-	log.Printf("Ping: %s, %s", usedTime, pingReply.Message)
+	//log.Printf("Ping: %s, %s", usedTime, pingReply.Message)
 	return nil
 }
 
@@ -91,7 +91,7 @@ func (c *MahjongClient) RefreshRoom(roomName string) error {
 		if err != nil {
 			return err
 		}
-		rn := room.NewRoom(roomID, r.RoomName, r.OwnerName)
+		rn := room.NewRoom(roomID, r.RoomName, player.NewPlayer(r.OwnerName, uuid.Nil))
 		rn.PlayerCount = int(r.PlayerCount)
 		c.RoomList = append(c.RoomList, rn)
 	}
@@ -114,7 +114,7 @@ func (c *MahjongClient) CreateRoom(roomName string) error {
 	if err != nil {
 		return err
 	}
-	c.Room = room.NewRoom(roomID, createRoomReply.Room.RoomName, createRoomReply.Room.OwnerName)
+	c.Room = room.NewRoom(roomID, createRoomReply.Room.RoomName, player.NewPlayer(createRoomReply.Room.OwnerName, uuid.Nil))
 	c.Room.PlayerCount = int(createRoomReply.Room.PlayerCount)
 	log.Printf("CreateRoom: %s", createRoomReply.Message)
 	c.ReadyStream, err = c.Client.Ready(c.Ctx)
@@ -126,7 +126,7 @@ func (c *MahjongClient) CreateRoom(roomName string) error {
 }
 
 func (c *MahjongClient) JoinRoom(roomId string) error {
-	log.Printf("Start JoinRoom: playerName: %s", c.P.PlayerName)
+	log.Printf("Start JoinRoom: roomID: %s", roomId)
 	joinRoomReply, err := c.Client.JoinRoom(c.Ctx, &pb.JoinRoomRequest{
 		RoomID: roomId,
 	})
@@ -137,7 +137,7 @@ func (c *MahjongClient) JoinRoom(roomId string) error {
 	if err != nil {
 		return err
 	}
-	c.Room = room.NewRoom(roomID, joinRoomReply.Room.RoomName, joinRoomReply.Room.OwnerName)
+	c.Room = room.NewRoom(roomID, joinRoomReply.Room.RoomName, player.NewPlayer(joinRoomReply.Room.OwnerName, uuid.Nil))
 	c.Room.PlayerCount = int(joinRoomReply.Room.PlayerCount)
 	c.P.Seat = int(joinRoomReply.Seat)
 	log.Printf("JoinRoom: %s", joinRoomReply.Message)
@@ -158,7 +158,6 @@ func (c *MahjongClient) Ready() error {
 	go func() {
 		defer wg.Done()
 		for {
-			log.Printf("123321")
 			readyReply, err := c.ReadyStream.Recv()
 			if err == io.EOF {
 				break
@@ -166,10 +165,10 @@ func (c *MahjongClient) Ready() error {
 			if err != nil {
 				continue
 			}
+			log.Printf("ReadyStream.Recv: %s", readyReply.Message)
 			switch readyReply.GetReply().(type) {
-			case *pb.ReadyReply_GetReadyReply:
+			case *pb.ReadyReply_GetReady:
 				c.handleGetReadyReply(readyReply)
-				log.Printf("ReadyStream.Recv: %s", readyReply.Message)
 			}
 		}
 	}()
@@ -203,8 +202,7 @@ func (c *MahjongClient) Ready() error {
 }
 
 func (c *MahjongClient) handleGetReadyReply(readyReply *pb.ReadyReply) {
-	log.Printf("ReadyStream.Recv: %s", readyReply.Message)
-	if int(readyReply.GetGetReadyReply().Seat) == c.P.Seat {
+	if int(readyReply.GetGetReady().Seat) == c.P.Seat {
 		c.P.Ready = true
 	}
 }

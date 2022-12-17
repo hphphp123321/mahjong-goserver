@@ -99,6 +99,8 @@ message RefreshRoomReply {
   repeated Room rooms = 2;
 }
 
+
+
 message ReadyRequest {
   oneof request {
     GetReadyRequest getReady = 2;
@@ -106,18 +108,21 @@ message ReadyRequest {
     AddRobotRequest addRobot = 4;
     RemovePlayerRequest removePlayer = 5;
     LeaveRoomRequest leaveRoom = 6;
+    StartGameRequest startGame = 7;
+    ChatRequest chat = 8;
   }
 }
 
 message ReadyReply {
   string message  = 1;
   oneof reply {
-    PlayerJoinReply playerJoinReply = 2;
-    GetReadyReply getReadyReply = 3;
-    CancelReadyReply cancelReadyReply = 4;
-    AddRobotReply addRobotReply = 5;
-    PlayerLeaveReply removePlayerReply = 6;
-    StartGameReply startGameReply = 7;
+    PlayerJoinReply playerJoin = 2;
+    GetReadyReply getReady = 3;
+    CancelReadyReply cancelReady = 4;
+    AddRobotReply addRobot = 5;
+    PlayerLeaveReply playerLeave = 6;
+    StartGameReply startGame = 7;
+    ChatReply chat = 8;
   }
 }
 
@@ -126,6 +131,7 @@ message StartRequest {
     string ping = 1;
     Action action = 2;
     string next = 3;
+    ChatRequest chat = 4;
   }
 }
 
@@ -138,6 +144,7 @@ message StartReply {
     CallMsg call = 6;
     string gameStart = 7;
     GameInfo gameInitInfo = 8;
+    ChatReply chat = 9;
   }
   repeated Action validActions = 4;
 }
@@ -240,6 +247,10 @@ message PlayerLeaveReply{
   string playerName = 3;
 }
 
+message StartGameRequest{
+  string message = 1;
+}
+
 message StartGameReply{
   string message = 1;
 }
@@ -250,4 +261,13 @@ message GetReadyRequest {
 
 message CancelReadyRequest {
   string message = 1;
+}
+
+message ChatRequest {
+  string message = 1;
+}
+
+message ChatReply {
+  string message = 1;
+  string playerName = 2;
 }

@@ -3,6 +3,7 @@ package room
 import (
 	"errors"
 	"github.com/google/uuid"
+	"mahjong-goserver/common"
 	"mahjong-goserver/player"
 )
 
@@ -10,10 +11,27 @@ type Room struct {
 	RoomID      uuid.UUID
 	RoomName    string
 	PlayerCount int
-	OwnerName   string
+	Owner       *player.Player
 
 	IdleSeats []int
 	Players   []*player.Player
+}
+
+func (r *Room) AddRobot(p *player.Player) error {
+	if r.PlayerCount == 4 {
+		return errors.New("room is full")
+	}
+	if !common.Contain(p.Seat, r.IdleSeats) {
+		return errors.New("seat already used")
+	}
+	r.Players = append(r.Players, p)
+	idleSeats, err := common.Remove(p.Seat, r.IdleSeats)
+	if err != nil {
+		return err
+	}
+	r.IdleSeats = idleSeats.([]int)
+	r.PlayerCount++
+	return nil
 }
 
 func (r *Room) AddPlayer(p *player.Player) error {
@@ -36,10 +54,26 @@ func (r *Room) RemovePlayer(p *player.Player) error {
 			//if r.PlayerCount > 0 {
 			//	r.OwnerName = r.Players[0].PlayerName
 			//}
+			if p == r.Owner {
+				if r.PlayerCount > 0 {
+					r.Owner = r.Players[0]
+				} else {
+					r.Owner = nil
+				}
+			}
 			return nil
 		}
 	}
 	return errors.New("player not found")
+}
+
+func (r *Room) GetPlayerBySeat(seat int) (*player.Player, error) {
+	for _, v := range r.Players {
+		if v.Seat == seat {
+			return v, nil
+		}
+	}
+	return nil, errors.New("player in seat not found")
 }
 
 func (r *Room) IsFull() bool {
@@ -68,12 +102,12 @@ func (r *Room) GetSeat(p *player.Player) (int, error) {
 	return -1, errors.New("player not found")
 }
 
-func NewRoom(roomID uuid.UUID, roomName string, masterName string) *Room {
+func NewRoom(roomID uuid.UUID, roomName string, owner *player.Player) *Room {
 	return &Room{
 		RoomID:      roomID,
 		RoomName:    roomName,
 		PlayerCount: 0,
-		OwnerName:   masterName,
+		Owner:       owner,
 		IdleSeats:   []int{0, 1, 2, 3},
 	}
 }

@@ -1,6 +1,9 @@
 package mahjong
 
-import "sort"
+import (
+	"mahjong-goserver/common"
+	"sort"
+)
 
 type MahjongPlayer struct {
 	Points          int
@@ -91,7 +94,7 @@ func (player *MahjongPlayer) IsNagashiMangan() bool {
 		return false
 	}
 	for _, tileID := range player.DiscardTiles {
-		if !Contain(tileID, YaoKyuTiles) {
+		if !common.Contain(tileID, YaoKyuTiles) {
 			return false
 		}
 	}

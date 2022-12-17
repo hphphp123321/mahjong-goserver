@@ -23,7 +23,7 @@ var (
 )
 
 func parseFlags() {
-	flag.StringVar(&playerName, "playerName", "player2", "player name")
+	flag.StringVar(&playerName, "playerName", "player1", "player name")
 	flag.StringVar(&address, "address", "127.0.0.1", "server address")
 	flag.IntVar(&port, "port", 7777, "port")
 	flag.IntVar(&timeout, "timeout", 5, "seconds for timeout")
@@ -54,7 +54,9 @@ func main() {
 	}
 
 	tcpAddr := fmt.Sprintf("%s:%d", address, port)
-	conn, err := grpc.Dial(tcpAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(unaryInterceptor), grpc.WithKeepaliveParams(kacp))
+	conn, err := grpc.Dial(tcpAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(kacp))
+
+	//conn, err := grpc.Dial(tcpAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(unaryInterceptor), grpc.WithKeepaliveParams(kacp))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}

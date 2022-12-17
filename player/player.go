@@ -8,12 +8,22 @@ type Player struct {
 
 	Seat  int
 	Ready bool
+
+	Agent GameAgent
 }
 
 func NewPlayer(playerName string, playerID uuid.UUID) *Player {
 	return &Player{
 		PlayerName: playerName,
 		Token:      playerID,
+	}
+}
+
+func NewRobot(robotName string, seat int, agent GameAgent) *Player {
+	return &Player{
+		PlayerName: robotName,
+		Seat:       seat,
+		Agent:      agent,
 	}
 }
 
