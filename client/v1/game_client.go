@@ -37,7 +37,7 @@ func NewMahjongClient(ctx context.Context, playerName string, grpcClient pb.Mahj
 
 func (c *MahjongClient) Ping() error {
 	start := time.Now()
-	_, err := c.Client.Ping(c.Ctx, &pb.PingRequest{Message: "ping"})
+	_, err := c.Client.Ping(c.Ctx, &pb.Empty{})
 	end := time.Now()
 	usedTime := end.Sub(start)
 	c.Delay = usedTime
@@ -70,9 +70,7 @@ func (c *MahjongClient) Login() error {
 
 func (c *MahjongClient) Logout() error {
 	log.Printf("Start Logout: playerName: %s", c.P.PlayerName)
-	logoutReply, err := c.Client.Logout(c.Ctx, &pb.LogoutRequest{
-		Token: c.P.Token.String(),
-	})
+	logoutReply, err := c.Client.Logout(c.Ctx, &pb.Empty{})
 	if err != nil {
 		return err
 	}
@@ -182,9 +180,7 @@ func (c *MahjongClient) Ready() error {
 				log.Printf("send ready")
 				err = c.ReadyStream.Send(&pb.ReadyRequest{
 					Request: &pb.ReadyRequest_GetReady{
-						GetReady: &pb.GetReadyRequest{
-							Message: "get ready",
-						}}})
+						GetReady: &pb.Empty{}}})
 				if err != nil {
 					log.Printf("ReadyStream.Send: %s", err)
 					return

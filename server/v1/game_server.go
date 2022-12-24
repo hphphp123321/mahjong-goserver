@@ -51,8 +51,8 @@ func NewMahjongServer(maxClients int) *MahjongServer {
 	}
 }
 
-func (s *MahjongServer) Ping(ctx context.Context, in *pb.PingRequest) (*pb.PingReply, error) {
-	return &pb.PingReply{Message: "pong"}, nil
+func (s *MahjongServer) Ping(ctx context.Context, in *pb.Empty) (*pb.Empty, error) {
+	return &pb.Empty{}, nil
 }
 
 func (s *MahjongServer) Login(ctx context.Context, in *pb.LoginRequest) (*pb.LoginReply, error) {
@@ -82,14 +82,8 @@ func (s *MahjongServer) Login(ctx context.Context, in *pb.LoginRequest) (*pb.Log
 	}, nil
 }
 
-func (s *MahjongServer) Logout(ctx context.Context, in *pb.LogoutRequest) (*pb.LogoutReply, error) {
+func (s *MahjongServer) Logout(ctx context.Context, in *pb.Empty) (*pb.LogoutReply, error) {
 	c, err := s.getClient(ctx)
-	if c.p.Token != uuid.MustParse(in.Token) {
-		return nil, errors.New("token not match")
-	}
-	if err != nil {
-		return nil, err
-	}
 	err = s.LeaveRoom(c)
 	if err != nil {
 		return nil, err

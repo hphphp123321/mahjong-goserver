@@ -22,9 +22,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MahjongClient interface {
-	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingReply, error)
+	Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginReply, error)
-	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutReply, error)
+	Logout(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*LogoutReply, error)
 	CreateRoom(ctx context.Context, in *CreateRoomRequest, opts ...grpc.CallOption) (*CreateRoomReply, error)
 	JoinRoom(ctx context.Context, in *JoinRoomRequest, opts ...grpc.CallOption) (*JoinRoomReply, error)
 	RefreshRoom(ctx context.Context, in *RefreshRoomRequest, opts ...grpc.CallOption) (*RefreshRoomReply, error)
@@ -40,8 +40,8 @@ func NewMahjongClient(cc grpc.ClientConnInterface) MahjongClient {
 	return &mahjongClient{cc}
 }
 
-func (c *mahjongClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingReply, error) {
-	out := new(PingReply)
+func (c *mahjongClient) Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
 	err := c.cc.Invoke(ctx, "/mahjong.Mahjong/Ping", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (c *mahjongClient) Login(ctx context.Context, in *LoginRequest, opts ...grp
 	return out, nil
 }
 
-func (c *mahjongClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutReply, error) {
+func (c *mahjongClient) Logout(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*LogoutReply, error) {
 	out := new(LogoutReply)
 	err := c.cc.Invoke(ctx, "/mahjong.Mahjong/Logout", in, out, opts...)
 	if err != nil {
@@ -160,9 +160,9 @@ func (x *mahjongStartClient) Recv() (*StartReply, error) {
 // All implementations must embed UnimplementedMahjongServer
 // for forward compatibility
 type MahjongServer interface {
-	Ping(context.Context, *PingRequest) (*PingReply, error)
+	Ping(context.Context, *Empty) (*Empty, error)
 	Login(context.Context, *LoginRequest) (*LoginReply, error)
-	Logout(context.Context, *LogoutRequest) (*LogoutReply, error)
+	Logout(context.Context, *Empty) (*LogoutReply, error)
 	CreateRoom(context.Context, *CreateRoomRequest) (*CreateRoomReply, error)
 	JoinRoom(context.Context, *JoinRoomRequest) (*JoinRoomReply, error)
 	RefreshRoom(context.Context, *RefreshRoomRequest) (*RefreshRoomReply, error)
@@ -175,13 +175,13 @@ type MahjongServer interface {
 type UnimplementedMahjongServer struct {
 }
 
-func (UnimplementedMahjongServer) Ping(context.Context, *PingRequest) (*PingReply, error) {
+func (UnimplementedMahjongServer) Ping(context.Context, *Empty) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedMahjongServer) Login(context.Context, *LoginRequest) (*LoginReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
 }
-func (UnimplementedMahjongServer) Logout(context.Context, *LogoutRequest) (*LogoutReply, error) {
+func (UnimplementedMahjongServer) Logout(context.Context, *Empty) (*LogoutReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
 }
 func (UnimplementedMahjongServer) CreateRoom(context.Context, *CreateRoomRequest) (*CreateRoomReply, error) {
@@ -213,7 +213,7 @@ func RegisterMahjongServer(s grpc.ServiceRegistrar, srv MahjongServer) {
 }
 
 func _Mahjong_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PingRequest)
+	in := new(Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func _Mahjong_Ping_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: "/mahjong.Mahjong/Ping",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MahjongServer).Ping(ctx, req.(*PingRequest))
+		return srv.(MahjongServer).Ping(ctx, req.(*Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -249,7 +249,7 @@ func _Mahjong_Login_Handler(srv interface{}, ctx context.Context, dec func(inter
 }
 
 func _Mahjong_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LogoutRequest)
+	in := new(Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func _Mahjong_Logout_Handler(srv interface{}, ctx context.Context, dec func(inte
 		FullMethod: "/mahjong.Mahjong/Logout",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MahjongServer).Logout(ctx, req.(*LogoutRequest))
+		return srv.(MahjongServer).Logout(ctx, req.(*Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }

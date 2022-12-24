@@ -5,11 +5,11 @@ option go_package = "services.mahjong.v1";
 package mahjong;
 
 service Mahjong {
-  rpc Ping (PingRequest) returns (PingReply) {}
+  rpc Ping (Empty) returns (Empty) {}
 
   rpc Login (LoginRequest) returns (LoginReply) {}
 
-  rpc Logout (LogoutRequest) returns (LogoutReply) {}
+  rpc Logout (Empty) returns (LogoutReply) {}
 
   rpc CreateRoom (CreateRoomRequest) returns (CreateRoomReply) {}
 
@@ -22,13 +22,7 @@ service Mahjong {
   rpc Start (stream StartRequest) returns (stream StartReply) {}
 }
 
-message PingRequest {
-  string message = 1;
-}
-
-message PingReply {
-  string message = 1;
-}
+message Empty {}
 
 message LoginRequest {
   string playerName = 1;
@@ -38,10 +32,6 @@ message LoginReply {
   string message = 1;
   string token = 2;
   optional ReconnectInfo reconnectInfo = 3;
-}
-
-message LogoutRequest {
-  string token = 1;
 }
 
 message LogoutReply {
@@ -100,15 +90,14 @@ message RefreshRoomReply {
 }
 
 
-
 message ReadyRequest {
   oneof request {
-    GetReadyRequest getReady = 2;
-    CancelReadyRequest cancelReady = 3;
+    Empty getReady = 2;
+    Empty cancelReady = 3;
     AddRobotRequest addRobot = 4;
     RemovePlayerRequest removePlayer = 5;
     LeaveRoomRequest leaveRoom = 6;
-    StartGameRequest startGame = 7;
+    Empty startGame = 7;
     ChatRequest chat = 8;
   }
 }
@@ -121,7 +110,7 @@ message ReadyReply {
     CancelReadyReply cancelReady = 4;
     AddRobotReply addRobot = 5;
     PlayerLeaveReply playerLeave = 6;
-    StartGameReply startGame = 7;
+    Empty startGame = 7;
     ChatReply chat = 8;
   }
 }
@@ -245,22 +234,6 @@ message PlayerLeaveReply{
   int32 seat = 1;
   int32 ownerSeat = 2;
   string playerName = 3;
-}
-
-message StartGameRequest{
-  string message = 1;
-}
-
-message StartGameReply{
-  string message = 1;
-}
-
-message GetReadyRequest {
-  string message = 1;
-}
-
-message CancelReadyRequest {
-  string message = 1;
 }
 
 message ChatRequest {
