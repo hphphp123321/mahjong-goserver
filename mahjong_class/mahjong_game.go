@@ -1,7 +1,7 @@
 package mahjong
 
 import (
-	"mahjong-goserver/common"
+	"github.com/hphphp123321/mahjong-goserver/common"
 	"sort"
 )
 

@@ -2,12 +2,11 @@ package robots
 
 import (
 	"errors"
-	"mahjong-goserver/player"
-	_ "mahjong-goserver/robots/simple"
+	"github.com/hphphp123321/mahjong-goserver/player"
 )
 
 var (
-	RobotsRegistry map[string]func() player.GameAgent
+	RobotsRegistry = map[string]func() player.GameAgent{}
 )
 
 func RegisterRobot(name string, robot func() player.GameAgent) {

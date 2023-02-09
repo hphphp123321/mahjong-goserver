@@ -1,7 +1,7 @@
 package osutils
 
 import (
-	"fmt"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,7 +12,7 @@ func WaitExit(c chan os.Signal, exit func()) {
 	for i := range c {
 		switch i {
 		case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
-			fmt.Println("receive exit signal ", i.String(), ",exit...")
+			log.Println("receive exit signal ", i.String(), ", exiting...")
 			exit()
 			os.Exit(0)
 		}

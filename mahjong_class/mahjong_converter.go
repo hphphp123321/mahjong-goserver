@@ -3,7 +3,7 @@ package mahjong
 import (
 	"github.com/dnovikoff/tempai-core/hand/calc"
 	"github.com/dnovikoff/tempai-core/tile"
-	"mahjong-goserver/common"
+	"github.com/hphphp123321/mahjong-goserver/common"
 )
 
 func IntsToTiles(tiles Tiles) tile.Tiles {

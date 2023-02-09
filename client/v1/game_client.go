@@ -3,12 +3,12 @@ package v1
 import (
 	"context"
 	"github.com/google/uuid"
+	"github.com/hphphp123321/mahjong-goserver/player"
+	"github.com/hphphp123321/mahjong-goserver/room"
+	pb "github.com/hphphp123321/mahjong-goserver/services/mahjong/v1"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
 	"io"
-	"log"
-	"mahjong-goserver/player"
-	"mahjong-goserver/room"
-	pb "mahjong-goserver/services/mahjong/v1"
 	"sync"
 	"time"
 )
@@ -158,10 +158,10 @@ func (c *MahjongClient) Ready() error {
 		for {
 			readyReply, err := c.ReadyStream.Recv()
 			if err == io.EOF {
-				break
+				return
 			}
 			if err != nil {
-				continue
+				return
 			}
 			log.Printf("ReadyStream.Recv: %s", readyReply.Message)
 			switch readyReply.GetReply().(type) {
@@ -175,6 +175,7 @@ func (c *MahjongClient) Ready() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer c.ReadyStream.CloseSend()
 		for {
 			if !c.P.Ready {
 				log.Printf("send ready")

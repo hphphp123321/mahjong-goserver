@@ -3,21 +3,26 @@ package room
 import (
 	"errors"
 	"github.com/google/uuid"
-	"mahjong-goserver/common"
-	"mahjong-goserver/player"
+	"github.com/hphphp123321/mahjong-goserver/common"
+	"github.com/hphphp123321/mahjong-goserver/player"
+	"sync"
 )
 
 type Room struct {
-	RoomID      uuid.UUID
-	RoomName    string
-	PlayerCount int
-	Owner       *player.Player
+	RoomID      uuid.UUID      `json:"room_id"`
+	RoomName    string         `json:"room_name"`
+	PlayerCount int            `json:"player_count"`
+	Owner       *player.Player `json:"owner"`
 
-	IdleSeats []int
-	Players   []*player.Player
+	IdleSeats []int            `json:"idle_seats"`
+	Players   []*player.Player `json:"players"`
+
+	mu sync.RWMutex
 }
 
 func (r *Room) AddRobot(p *player.Player) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.PlayerCount == 4 {
 		return errors.New("room is full")
 	}
@@ -35,6 +40,8 @@ func (r *Room) AddRobot(p *player.Player) error {
 }
 
 func (r *Room) AddPlayer(p *player.Player) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.PlayerCount == 4 {
 		return errors.New("room is full")
 	}
@@ -46,6 +53,8 @@ func (r *Room) AddPlayer(p *player.Player) error {
 }
 
 func (r *Room) RemovePlayer(p *player.Player) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for i, v := range r.Players {
 		if v.Token == p.Token {
 			r.Players = append(r.Players[:i], r.Players[i+1:]...)
@@ -68,6 +77,8 @@ func (r *Room) RemovePlayer(p *player.Player) error {
 }
 
 func (r *Room) GetPlayerBySeat(seat int) (*player.Player, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, v := range r.Players {
 		if v.Seat == seat {
 			return v, nil
@@ -77,14 +88,20 @@ func (r *Room) GetPlayerBySeat(seat int) (*player.Player, error) {
 }
 
 func (r *Room) IsFull() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.PlayerCount == 4
 }
 
 func (r *Room) IsEmpty() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.PlayerCount == 0
 }
 
 func (r *Room) CheckAllReady() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, v := range r.Players {
 		if !v.Ready {
 			return false
@@ -94,6 +111,8 @@ func (r *Room) CheckAllReady() bool {
 }
 
 func (r *Room) GetSeat(p *player.Player) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for _, v := range r.Players {
 		if v.Token == p.Token {
 			return v.Seat, nil

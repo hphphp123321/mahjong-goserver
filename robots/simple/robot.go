@@ -2,9 +2,9 @@ package simple
 
 import (
 	"errors"
-	"mahjong-goserver/player"
-	"mahjong-goserver/robots"
-	pb "mahjong-goserver/services/mahjong/v1"
+	"github.com/hphphp123321/mahjong-goserver/player"
+	"github.com/hphphp123321/mahjong-goserver/robots"
+	pb "github.com/hphphp123321/mahjong-goserver/services/mahjong/v1"
 )
 
 type Robot struct {

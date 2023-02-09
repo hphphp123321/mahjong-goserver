@@ -5,42 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/hphphp123321/mahjong-goserver/common"
+	"github.com/hphphp123321/mahjong-goserver/player"
+	"github.com/hphphp123321/mahjong-goserver/robots"
+	_ "github.com/hphphp123321/mahjong-goserver/robots/simple"
+	"github.com/hphphp123321/mahjong-goserver/room"
+	pb "github.com/hphphp123321/mahjong-goserver/services/mahjong/v1"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
 	"io"
-	"log"
-	"mahjong-goserver/common"
-	"mahjong-goserver/player"
-	"mahjong-goserver/robots"
-	"mahjong-goserver/room"
-	pb "mahjong-goserver/services/mahjong/v1"
 	"strings"
 	"sync"
 	"time"
 )
 
-type client struct {
-	readyStream pb.Mahjong_ReadyServer
-	startStream pb.Mahjong_StartServer
-
-	lastTime time.Time
-	online   bool
-
-	done chan error
-
-	p *player.Player
-	//playerName string
-	//token      uuid.UUID
-
-	room *room.Room
-}
-
 type MahjongServer struct {
 	pb.UnimplementedMahjongServer
 	clients    map[uuid.UUID]*client
-	mu         sync.RWMutex
+	clientMu   sync.RWMutex
 	maxClients int
 
-	rooms map[uuid.UUID]*room.Room
+	rooms  map[uuid.UUID]*room.Room
+	roomMu sync.RWMutex
 }
 
 func NewMahjongServer(maxClients int) *MahjongServer {
@@ -56,8 +42,8 @@ func (s *MahjongServer) Ping(ctx context.Context, in *pb.Empty) (*pb.Empty, erro
 }
 
 func (s *MahjongServer) Login(ctx context.Context, in *pb.LoginRequest) (*pb.LoginReply, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
 	for t, p := range s.clients {
 		if p.p.PlayerName == in.PlayerName {
 			p.online = true
@@ -71,11 +57,12 @@ func (s *MahjongServer) Login(ctx context.Context, in *pb.LoginRequest) (*pb.Log
 		return nil, errors.New("too many clients")
 	}
 	token := uuid.New()
-	s.clients[token] = &client{
-		p:      player.NewPlayer(in.PlayerName, token),
-		online: true,
-	}
-	log.Printf("Login: playerName: %s, UUID: %s", in.PlayerName, token.String())
+	s.clients[token] = newClient(in.PlayerName, token)
+	log.WithFields(log.Fields{
+		"Event":      "Login",
+		"PlayerName": in.PlayerName,
+		"UUID":       token.String(),
+	}).Info("player login success")
 	return &pb.LoginReply{
 		Message: "login success",
 		Token:   token.String(),
@@ -84,12 +71,22 @@ func (s *MahjongServer) Login(ctx context.Context, in *pb.LoginRequest) (*pb.Log
 
 func (s *MahjongServer) Logout(ctx context.Context, in *pb.Empty) (*pb.LogoutReply, error) {
 	c, err := s.getClient(ctx)
-	err = s.LeaveRoom(c)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Logout: PlayerName: %s, UUID: %s", c.p.PlayerName, c.p.Token.String())
+	if c.p.RoomID != uuid.Nil {
+		err = s.LeaveRoom(c)
+		if err != nil {
+			return nil, err
+		}
+	}
+	close(c.done)
 	s.removeClient(c)
+	log.WithFields(log.Fields{
+		"Event":      "Logout",
+		"PlayerName": c.p.PlayerName,
+		"UUID":       c.p.Token.String(),
+	}).Info("player logout success")
 	return &pb.LogoutReply{
 		Message: "logout success",
 	}, nil
@@ -100,9 +97,6 @@ func (s *MahjongServer) RefreshRoom(ctx context.Context, in *pb.RefreshRoomReque
 	if err != nil {
 		return nil, err
 	}
-	//if c.room != nil {
-	//	return nil, errors.New("already in room")
-	//}
 	roomSlice := make([]*pb.Room, 0)
 	rName := ""
 	if in.RoomName != nil {
@@ -118,6 +112,9 @@ func (s *MahjongServer) RefreshRoom(ctx context.Context, in *pb.RefreshRoomReque
 			})
 		}
 	}
+	log.WithFields(log.Fields{
+		"Event": "RefreshRoom",
+	}).Debug("refresh room success")
 	return &pb.RefreshRoomReply{
 		Message: "refresh room success, room count: " + fmt.Sprint(len(roomSlice)),
 		Rooms:   roomSlice,
@@ -129,11 +126,11 @@ func (s *MahjongServer) CreateRoom(ctx context.Context, in *pb.CreateRoomRequest
 	if err != nil {
 		return nil, err
 	}
-	if c.room != nil {
+	if c.p.RoomID != uuid.Nil {
 		return nil, errors.New("already in room")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
 	roomId := uuid.New()
 	newRoom := room.NewRoom(roomId, in.RoomName, c.p)
 	err = newRoom.AddPlayer(c.p)
@@ -141,8 +138,14 @@ func (s *MahjongServer) CreateRoom(ctx context.Context, in *pb.CreateRoomRequest
 		return nil, err
 	}
 	s.rooms[roomId] = newRoom
-	c.room = newRoom
-	log.Printf("CreateRoom: PlayerName: %s, RoomName: %s, UUID: %s", c.p.PlayerName, in.RoomName, roomId.String())
+	c.p.RoomID = newRoom.RoomID
+
+	log.WithFields(log.Fields{
+		"Event":      "CreateRoom",
+		"PlayerName": c.p.PlayerName,
+		"RoomName":   in.RoomName,
+		"UUID":       roomId.String(),
+	}).Info("create room success")
 	return &pb.CreateRoomReply{
 		Message: fmt.Sprintf("Create Room Success! Room UUID: %s", roomId.String()),
 		Room: &pb.Room{
@@ -158,11 +161,11 @@ func (s *MahjongServer) JoinRoom(ctx context.Context, in *pb.JoinRoomRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	if c.room != nil {
+	if c.p.RoomID != uuid.Nil {
 		return nil, errors.New("already in room")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
 	roomId, err := uuid.Parse(in.RoomID)
 	if err != nil {
 		return nil, err
@@ -177,9 +180,8 @@ func (s *MahjongServer) JoinRoom(ctx context.Context, in *pb.JoinRoomRequest) (*
 	if err = joinRoom.AddPlayer(c.p); err != nil {
 		return nil, err
 	}
-	c.room = joinRoom
+	c.p.RoomID = joinRoom.RoomID
 	seat, err := joinRoom.GetSeat(c.p)
-	log.Printf("JoinRoom: PlayerName: %s, RoomName: %s, Seat: %d", c.p.PlayerName, c.room.RoomName, seat)
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +198,12 @@ func (s *MahjongServer) JoinRoom(ctx context.Context, in *pb.JoinRoomRequest) (*
 		return nil, err
 	}
 
+	log.WithFields(log.Fields{
+		"Event":      "JoinRoom",
+		"PlayerName": c.p.PlayerName,
+		"RoomName":   joinRoom.RoomName,
+		"Seat":       seat,
+	}).Info("join room success")
 	return &pb.JoinRoomReply{
 		Message: fmt.Sprintf("Join Room Success! Room UUID: %s", roomId.String()),
 		Seat:    int32(seat),
@@ -213,22 +221,23 @@ func (s *MahjongServer) Ready(stream pb.Mahjong_ReadyServer) error {
 	if err != nil {
 		return err
 	}
-	if c.room == nil {
+	if c.p.RoomID == uuid.Nil {
 		return errors.New("not in room")
 	}
 	if c.readyStream != nil {
 		return errors.New("already has ready stream")
 	}
 	c.readyStream = stream
-	log.Printf("Start new ReadyStream for player: %s", c.p.PlayerName)
+	log.Info("Start new ReadyStream for player: %s", c.p.PlayerName)
 	go func() {
 		for {
 			in, err := stream.Recv()
 			if err == io.EOF {
+				c.done <- nil
 				return
 			}
 			if err != nil {
-				log.Printf("receive error %v", err)
+				log.Warningf("receive error %v", err)
 				c.done <- errors.New("failed to receive request")
 				return
 			}
@@ -278,19 +287,24 @@ func (s *MahjongServer) Ready(stream pb.Mahjong_ReadyServer) error {
 	select {
 	case <-ctx.Done():
 		doneError = ctx.Err()
-	case doneError = <-c.done:
+	case <-c.done:
+		log.Info("ReadyStream done for player: ", c.p.PlayerName)
 	}
-	if err != nil {
-		return err
+	if doneError != nil {
+		return doneError
 	}
-	return doneError
+	return nil
 }
 
 func (s *MahjongServer) readyBoardCast(c *client, resp *pb.ReadyReply, includeSelf bool) error {
-	if c.room == nil {
+	if c.p.RoomID == uuid.Nil {
 		return errors.New("not in room")
 	}
-	for _, p := range c.room.Players {
+	r, err := s.getRoomByClient(c)
+	if err != nil {
+		return err
+	}
+	for _, p := range r.Players {
 		if p.Token == c.p.Token {
 			if !includeSelf {
 				continue
@@ -320,8 +334,8 @@ func (s *MahjongServer) getToken(ctx context.Context) (uuid.UUID, error) {
 }
 
 func (s *MahjongServer) getClient(ctx context.Context) (*client, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.clientMu.RLock()
+	defer s.clientMu.RUnlock()
 	token, err := s.getToken(ctx)
 	if err != nil {
 		return nil, err
@@ -335,58 +349,72 @@ func (s *MahjongServer) getClient(ctx context.Context) (*client, error) {
 }
 
 func (s *MahjongServer) removeClient(c *client) {
-	s.mu.Lock()
+	s.clientMu.Lock()
 	delete(s.clients, c.p.Token)
-	s.mu.Unlock()
+	s.clientMu.Unlock()
+}
+
+func (s *MahjongServer) getRoomByClient(c *client) (*room.Room, error) {
+	s.roomMu.RLock()
+	defer s.roomMu.RUnlock()
+	if c.p.RoomID == uuid.Nil {
+		return nil, errors.New("not in room")
+	}
+	cRoom, ok := s.rooms[c.p.RoomID]
+	if !ok {
+		return nil, errors.New("room not exist")
+	}
+	return cRoom, nil
 }
 
 // LeaveRoom detect when client disconnects or leaves room
 func (s *MahjongServer) LeaveRoom(c *client) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if c.room == nil {
+	r, err := s.getRoomByClient(c)
+	if err != nil {
+		return err
+	}
+	if r == nil {
 		return nil
+	}
+	log.Debugf("LeaveRoom: PlayerName: %s, RoomName: %s", c.p.PlayerName, r.RoomName)
+
+	roomID := r.RoomID
+	if err := r.RemovePlayer(c.p); err != nil {
+		return err
+	}
+	if r.IsEmpty() {
+		s.roomMu.Lock()
+		delete(s.rooms, roomID)
+		s.roomMu.Unlock()
+		log.Printf("Room %s is empty, delete", roomID.String())
 	} else {
-		roomID := c.room.RoomID
-		if err := c.room.RemovePlayer(c.p); err != nil {
-			return err
-		}
 		rep := &pb.ReadyReply{Message: fmt.Sprintf("player: %s, leave room", c.p.PlayerName),
 			Reply: &pb.ReadyReply_PlayerLeave{PlayerLeave: &pb.PlayerLeaveReply{
 				Seat:       int32(c.p.Seat),
-				OwnerSeat:  int32(c.room.Owner.Seat),
+				OwnerSeat:  int32(r.Owner.Seat),
 				PlayerName: c.p.PlayerName,
 			}}}
 		if err := s.readyBoardCast(c, rep, true); err != nil {
 			return err
 		}
-		log.Printf("LeaveRoom: PlayerName: %s, RoomName: %s", c.p.PlayerName, c.room.RoomName)
-		if c.room.IsEmpty() {
-			delete(s.rooms, roomID)
-			log.Printf("Room %s is empty, delete", roomID.String())
-		}
-		c.room = nil
-		c.readyStream = nil
 	}
-	return nil
-}
+	log.WithFields(log.Fields{
+		"PlayerName": c.p.PlayerName,
+		"RoomName":   r.RoomName,
+	}).Debug("LeaveRoom success")
+	r = nil
+	c.readyStream = nil
 
-func (s *MahjongServer) sendReadyNotify(c *client, msg string) error {
-	var err error
-	rep := &pb.ReadyReply{
-		Message: msg,
-	}
-	err = c.readyStream.Send(rep)
-	if err != nil {
-		c.done <- err
-		return err
-	}
 	return nil
 }
 
 func (s *MahjongServer) handleGetReadyRequest(c *client, in *pb.ReadyRequest) error {
 	var err error
-	log.Printf("GetReady Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, c.room.RoomName, in.GetGetReady().String())
+	log.Debugf("GetReady Req: PlayerName: %s,  request: %s", c.p.PlayerName, in.GetGetReady().String())
+	if c.p.Ready {
+		log.Warning("Player already ready")
+		return nil
+	}
 	c.p.SetReady(true)
 
 	rep := &pb.ReadyReply{
@@ -401,12 +429,17 @@ func (s *MahjongServer) handleGetReadyRequest(c *client, in *pb.ReadyRequest) er
 		c.done <- err
 		return err
 	}
+	log.WithFields(log.Fields{
+		"Event":      "GetReady",
+		"PlayerName": c.p.PlayerName,
+		"Seat":       c.p.Seat,
+	}).Info("Player Get Ready Success")
 	return nil
 }
 
 func (s *MahjongServer) handleCancelReadyRequest(c *client, in *pb.ReadyRequest) error {
 	var err error
-	log.Printf("CancelReady Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, c.room.RoomName, in.GetCancelReady().String())
+	log.Debugf("CancelReady Req: PlayerName: %s,  request: %s", c.p.PlayerName, in.GetCancelReady().String())
 	c.p.SetReady(false)
 
 	rep := &pb.ReadyReply{
@@ -421,51 +454,65 @@ func (s *MahjongServer) handleCancelReadyRequest(c *client, in *pb.ReadyRequest)
 		c.done <- err
 		return err
 	}
+	log.WithFields(log.Fields{
+		"Event":      "CancelReady",
+		"PlayerName": c.p.PlayerName,
+		"Seat":       c.p.Seat,
+	}).Info("Player Cancel Ready success")
 	return nil
 }
 
 func (s *MahjongServer) handleLeaveRoomRequest(c *client, in *pb.ReadyRequest) error {
 	var err error
-	log.Printf("LeaveRoom Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, c.room.RoomName, in.GetLeaveRoom().String())
+	log.Debugf("LeaveRoom Req: PlayerName: %s,  request: %s", c.p.PlayerName, in.GetLeaveRoom().String())
 	err = s.LeaveRoom(c)
 	if err != nil {
 		c.done <- err
 		return err
 	}
+	log.WithFields(log.Fields{
+		"Event":      "LeaveRoom",
+		"PlayerName": c.p.PlayerName,
+		"Seat":       c.p.Seat,
+	}).Info("Player Leave Room success")
 	return nil
 }
 
 func (s *MahjongServer) handleRemovePlayerRequest(c *client, in *pb.ReadyRequest) error {
 	var err error
-	if c.room.Owner != c.p {
-		err = s.sendReadyNotify(c, fmt.Sprintf("player: %s, is not owner, can't remove player", c.p.PlayerName))
-		if err != nil {
-			return err
-		}
-	}
-	log.Printf("RemovePlayer Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, c.room.RoomName, in.GetRemovePlayer().String())
-	seat := int(in.GetRemovePlayer().PlayerSeat)
-	p, err := c.room.GetPlayerBySeat(seat)
+	r, err := s.getRoomByClient(c)
 	if err != nil {
 		return err
 	}
-	if p == c.p {
-		err = s.sendReadyNotify(c, fmt.Sprintf("player: %s, can't remove self", c.p.PlayerName))
+	if r.Owner != c.p {
+		err = c.sendReadyMessage(fmt.Sprintf("player: %s, is not owner, can't remove player", c.p.PlayerName))
 		if err != nil {
 			return err
 		}
 	}
-	err = c.room.RemovePlayer(p)
+	log.Debugf("RemovePlayer Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, r.RoomName, in.GetRemovePlayer().String())
+	seat := int(in.GetRemovePlayer().PlayerSeat)
+	playerToRemove, err := r.GetPlayerBySeat(seat)
+	if err != nil {
+		return err
+	}
+	if playerToRemove == c.p {
+		err = c.sendReadyMessage(fmt.Sprintf("player: %s, can't remove self", c.p.PlayerName))
+		if err != nil {
+			return err
+		}
+	}
+	err = r.RemovePlayer(playerToRemove)
 	if err != nil {
 		c.done <- err
 		return err
 	}
 	rep := &pb.ReadyReply{
-		Message: fmt.Sprintf("player: %s, remove player: %s success", c.p.PlayerName, p.PlayerName),
+		Message: fmt.Sprintf("player: %s, remove player: %s success", c.p.PlayerName, playerToRemove.PlayerName),
 		Reply: &pb.ReadyReply_PlayerLeave{PlayerLeave: &pb.PlayerLeaveReply{
-			Seat:       int32(p.Seat),
-			PlayerName: p.PlayerName,
-			OwnerSeat:  int32(c.room.Owner.Seat),
+			Seat:       int32(playerToRemove.Seat),
+			PlayerName: playerToRemove.PlayerName,
+			OwnerSeat:  int32(r.Owner.Seat),
 		}},
 	}
 	err = s.readyBoardCast(c, rep, true)
@@ -473,21 +520,32 @@ func (s *MahjongServer) handleRemovePlayerRequest(c *client, in *pb.ReadyRequest
 		c.done <- err
 		return err
 	}
+	log.WithFields(log.Fields{
+		"Event":             "RemovePlayer",
+		"PlayerName":        c.p.PlayerName,
+		"RemovedPlayerName": playerToRemove.PlayerName,
+		"RoomName":          r.RoomName,
+		"Seat":              seat,
+	}).Info("Player Remove Player success")
 	return nil
 }
 
 func (s *MahjongServer) handleAddRobotRequest(c *client, in *pb.ReadyRequest) error {
 	var err error
-	if c.room.Owner != c.p {
-		err = s.sendReadyNotify(c, fmt.Sprintf("player: %s, is not owner, can't add robot", c.p.PlayerName))
+	r, err := s.getRoomByClient(c)
+	if err != nil {
+		return err
+	}
+	if r.Owner != c.p {
+		err = c.sendReadyMessage(fmt.Sprintf("player: %s, is not owner, can't add robot", c.p.PlayerName))
 		if err != nil {
 			return err
 		}
 	}
-	log.Printf("AddRobot Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, c.room.RoomName, in.GetAddRobot().String())
+	log.Debugf("AddRobot Req: PlayerName: %s, RoomName: %s, request: %s", c.p.PlayerName, r.RoomName, in.GetAddRobot().String())
 	seat := int(in.GetAddRobot().RobotSeat)
-	if !common.Contain(seat, c.room.IdleSeats) {
-		err = s.sendReadyNotify(c, fmt.Sprintf("seat %v not valid", seat))
+	if !common.Contain(seat, r.IdleSeats) {
+		err = c.sendReadyMessage(fmt.Sprintf("seat %v not valid", seat))
 		if err != nil {
 			return err
 		}
@@ -495,15 +553,15 @@ func (s *MahjongServer) handleAddRobotRequest(c *client, in *pb.ReadyRequest) er
 	level := in.GetAddRobot().RobotLevel
 	robot, err := robots.GetRobot(level)
 	if err != nil {
-		err = s.sendReadyNotify(c, fmt.Sprintf("robot level %s not valid", level))
+		err = c.sendReadyMessage(fmt.Sprintf("robot level %s not valid", level))
 		if err != nil {
 			return err
 		}
 	}
 	robotPlayer := player.NewRobot(level, seat, robot)
-	err = c.room.AddRobot(robotPlayer)
+	err = r.AddRobot(robotPlayer)
 	if err != nil {
-		err = s.sendReadyNotify(c, err.Error())
+		err = c.sendReadyMessage(err.Error())
 		if err != nil {
 			return err
 		}
@@ -516,6 +574,13 @@ func (s *MahjongServer) handleAddRobotRequest(c *client, in *pb.ReadyRequest) er
 		}},
 	}
 	err = s.readyBoardCast(c, rep, true)
+	log.WithFields(log.Fields{
+		"Event":      "AddRobot",
+		"PlayerName": c.p.PlayerName,
+		"RoomName":   r.RoomName,
+		"RobotLevel": level,
+		"Seat":       seat,
+	}).Info("Player Add Robot success")
 	if err != nil {
 		c.done <- err
 		return err
@@ -526,7 +591,7 @@ func (s *MahjongServer) handleAddRobotRequest(c *client, in *pb.ReadyRequest) er
 //func (s *MahjongServer) CheckClients() {
 //	for {
 //		time.Sleep(30 * time.Second)
-//		s.mu.Lock()
+//		s.clientMu.Lock()
 //		for token, c := range s.clients {
 //			if c.online {
 //				if time.Since(c.lastTime) > 60*time.Second {
@@ -549,6 +614,6 @@ func (s *MahjongServer) handleAddRobotRequest(c *client, in *pb.ReadyRequest) er
 //				}
 //			}
 //		}
-//		s.mu.Unlock()
+//		s.clientMu.Unlock()
 //	}
 //}
