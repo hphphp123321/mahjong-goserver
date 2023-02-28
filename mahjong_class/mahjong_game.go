@@ -1,107 +1,130 @@
 package mahjong
 
 import (
+	"github.com/dnovikoff/tempai-core/base"
+	"github.com/dnovikoff/tempai-core/score"
+	"github.com/dnovikoff/tempai-core/yaku"
 	"github.com/hphphp123321/mahjong-goserver/common"
 	"sort"
 )
 
-type MahjongGame struct {
-	P0               *MahjongPlayer
-	P1               *MahjongPlayer
-	P2               *MahjongPlayer
-	P3               *MahjongPlayer
-	Tiles            *MahjongTiles
-	WindRound        int
-	NumGame          int
-	NumRiichi        int
-	NumHonba         int
-	CurrentRiichiNum int
-	Position         int
-	PosPlayer        map[int]*MahjongPlayer
+type Game struct {
+	rule *Rule
+
+	P0        *Player
+	P1        *Player
+	P2        *Player
+	P3        *Player
+	posPlayer map[Wind]*Player
+
+	posEvents map[Wind]Events
+	posCall   map[Wind]*Call
+
+	Tiles *MahjongTiles
+
+	WindRound int // {0:东一, 1:东二, 2:东三, 3:东四, 4:南一, 5:南二, 6:南三, 7:南四(all last), 8:西一(西入条件)...}
+	NumGame   int
+	NumRiichi int
+	NumHonba  int
+
+	Position Wind
+
+	State gameState
 }
 
-func NewMahjongGame(playerSlice []*MahjongPlayer) *MahjongGame {
-	game := MahjongGame{Tiles: &MahjongTiles{}}
+func NewMahjongGame(playerSlice []*Player, rule *Rule) *Game {
+	game := Game{Tiles: NewMahjongTiles()}
 	game.Reset(playerSlice)
+	if rule == nil {
+		game.rule = GetDefaultRule()
+	} else {
+		game.rule = rule
+	}
 	return &game
 }
 
-func (game *MahjongGame) NewGameRound(windRound int) {
+func (game *Game) NewGameRound(windRound int) {
 	game.WindRound = windRound
 	game.NumGame += 1
 	game.Tiles.Reset()
 	game.Position = 0
-	game.PosPlayer[(16-windRound)%4] = game.P0
-	game.PosPlayer[(17-windRound)%4] = game.P1
-	game.PosPlayer[(18-windRound)%4] = game.P2
-	game.PosPlayer[(19-windRound)%4] = game.P3
+	game.posEvents = map[Wind]Events{}
+	game.posPlayer[Wind((16-windRound)%4)] = game.P0
+	game.posPlayer[Wind((17-windRound)%4)] = game.P1
+	game.posPlayer[Wind((18-windRound)%4)] = game.P2
+	game.posPlayer[Wind((19-windRound)%4)] = game.P3
 	game.P0.ResetForRound()
 	game.P1.ResetForRound()
 	game.P2.ResetForRound()
 	game.P3.ResetForRound()
 }
 
-func (game *MahjongGame) Reset(playerSlice []*MahjongPlayer) {
+func (game *Game) Reset(playerSlice []*Player) {
 	game.Tiles.Reset()
 	game.NumGame = 0
 	game.WindRound = 0
 	game.NumRiichi = 0
 	game.NumHonba = 0
-	game.CurrentRiichiNum = 0
 	game.Position = 0
+	game.posEvents = map[Wind]Events{}
 
-	if playerSlice != nil {
-		game.P0 = playerSlice[0]
-		game.P1 = playerSlice[1]
-		game.P2 = playerSlice[2]
-		game.P3 = playerSlice[3]
-	}
+	game.P0 = playerSlice[0]
+	game.P1 = playerSlice[1]
+	game.P2 = playerSlice[2]
+	game.P3 = playerSlice[3]
+
 	game.P0.ResetForGame()
 	game.P1.ResetForGame()
 	game.P2.ResetForGame()
 	game.P3.ResetForGame()
-	game.PosPlayer = map[int]*MahjongPlayer{0: playerSlice[0], 1: playerSlice[1], 2: playerSlice[2], 3: playerSlice[3]}
+	game.posPlayer = map[Wind]*Player{0: playerSlice[0], 1: playerSlice[1], 2: playerSlice[2], 3: playerSlice[3]}
 }
 
-func (game *MahjongGame) ProcessOtherCall(pMain *MahjongPlayer, call Call) {
-	if call.CallType == Skip {
+func (game *Game) ProcessOtherCall(pMain *Player, call *Call) {
+	switch call.CallType {
+	case Skip:
 		return
-	} else if call.CallType == Chi {
+	case Chi:
 		game.processChi(pMain, call)
 		game.Position = pMain.Wind
 		game.breakIppatsu()
 		game.breakRyuukyoku()
-	} else if call.CallType == Pon {
+	case Pon:
 		game.processPon(pMain, call)
 		game.Position = pMain.Wind
 		game.breakIppatsu()
 		game.breakRyuukyoku()
-	} else if call.CallType == DaiMinKan {
+	case DaiMinKan:
 		game.processDaiMinKan(pMain, call)
 		game.Position = pMain.Wind
 		game.breakIppatsu()
 		game.breakRyuukyoku()
+	default:
+		panic("unknown call type")
 	}
 }
 
-func (game *MahjongGame) ProcessSelfCall(pMain *MahjongPlayer, call Call) {
-	if call.CallType == Discard {
+func (game *Game) ProcessSelfCall(pMain *Player, call *Call) {
+	switch call.CallType {
+	case Discard:
 		game.DiscardTileProcess(pMain, call.CallTiles[0])
-	} else if call.CallType == ShouMinKan {
+	case ShouMinKan:
 		game.processShouMinKan(pMain, call)
 		game.breakIppatsu()
 		game.breakRyuukyoku()
-	} else if call.CallType == AnKan {
+	case AnKan:
 		game.processAnKan(pMain, call)
 		game.breakIppatsu()
 		game.breakRyuukyoku()
-	} else if call.CallType == Riichi {
+	case Riichi:
 		game.processRiichi(pMain, call)
 		game.breakIppatsu()
+	default:
+		panic("unknown call type")
 	}
 }
 
-func (game *MahjongGame) GetTileProcess(pMain *MahjongPlayer, tileID int) {
+func (game *Game) GetTileProcess(pMain *Player, tileID int) {
 	if pMain.IsRiichi {
 		for _, tile := range pMain.HandTiles {
 			game.Tiles.allTiles[tile].discardable = false
@@ -116,12 +139,12 @@ func (game *MahjongGame) GetTileProcess(pMain *MahjongPlayer, tileID int) {
 	pMain.JunFuriten = false
 }
 
-// TODO deal tile
-func (game *MahjongGame) DealTile() {
-	game.Tiles.DealTile()
+// DealTile TODO deal tile
+func (game *Game) DealTile() {
+	game.Tiles.DealTile(false)
 }
 
-func (game *MahjongGame) DiscardTileProcess(pMain *MahjongPlayer, tileID int) {
+func (game *Game) DiscardTileProcess(pMain *Player, tileID int) {
 	if !game.Tiles.allTiles[tileID].discardable {
 		panic("Illegal Discard ID")
 	}
@@ -153,15 +176,15 @@ func (game *MahjongGame) DiscardTileProcess(pMain *MahjongPlayer, tileID int) {
 	}
 	otherWinds := game.getOtherWinds()
 	for _, wind := range otherWinds {
-		if common.Contain(tileID/4, game.PosPlayer[wind].TenhaiSlice) {
-			game.PosPlayer[wind].FuritenStatus = true
+		if common.Contain(tileID/4, game.posPlayer[wind].TenhaiSlice) {
+			game.posPlayer[wind].FuritenStatus = true
 		} else {
-			game.PosPlayer[wind].FuritenStatus = false
+			game.posPlayer[wind].FuritenStatus = false
 		}
 	}
 }
 
-func (game *MahjongGame) GetDiscardableSlice(handTiles Tiles) Tiles {
+func (game *Game) GetDiscardableSlice(handTiles Tiles) Tiles {
 	tiles := Tiles{}
 	for _, tile := range handTiles {
 		if game.Tiles.allTiles[tile].discardable {
@@ -171,21 +194,21 @@ func (game *MahjongGame) GetDiscardableSlice(handTiles Tiles) Tiles {
 	return tiles
 }
 
-func (game *MahjongGame) JudgeDiscardCall(pMain *MahjongPlayer) Calls {
+func (game *Game) JudgeDiscardCall(pMain *Player) Calls {
 	var validCalls = make(Calls, 0)
 	discardableSlice := game.GetDiscardableSlice(pMain.HandTiles)
 	for _, tile := range discardableSlice {
 		call := Call{
 			CallType:         Discard,
 			CallTiles:        Tiles{tile, -1, -1, -1},
-			CallTilesFromWho: []int{pMain.Wind, -1, -1, -1},
+			CallTilesFromWho: []Wind{pMain.Wind, -1, -1, -1},
 		}
-		validCalls = append(validCalls, call)
+		validCalls = append(validCalls, &call)
 	}
 	return validCalls
 }
 
-func (game *MahjongGame) JudgeSelfCalls(pMain *MahjongPlayer) Calls {
+func (game *Game) JudgeSelfCalls(pMain *Player) Calls {
 	var validCalls Calls
 	riichi := game.judgeRiichi(pMain)
 	shouMinKan := game.judgeShouMinKan(pMain)
@@ -198,11 +221,11 @@ func (game *MahjongGame) JudgeSelfCalls(pMain *MahjongPlayer) Calls {
 	return validCalls
 }
 
-func (game *MahjongGame) JudgeOtherCalls(pMain *MahjongPlayer, tileID int) Calls {
-	validCalls := Calls{Call{
+func (game *Game) JudgeOtherCalls(pMain *Player, tileID int) Calls {
+	validCalls := Calls{&Call{
 		CallType:         Skip,
 		CallTiles:        Tiles{-1, -1, -1, -1},
-		CallTilesFromWho: []int{-1, -1, -1, -1},
+		CallTilesFromWho: []Wind{-1, -1, -1, -1},
 	}}
 	daiMinKan := game.judgeDaiMinKan(pMain, tileID)
 	pon := game.judgePon(pMain, tileID)
@@ -213,7 +236,7 @@ func (game *MahjongGame) JudgeOtherCalls(pMain *MahjongPlayer, tileID int) Calls
 	return validCalls
 }
 
-func (game *MahjongGame) processRiichi(pMain *MahjongPlayer, call Call) {
+func (game *Game) processRiichi(pMain *Player, call *Call) {
 	if pMain.JunNum == 1 && pMain.IppatsuStatus {
 		pMain.IsDaburuRiichi = true
 	}
@@ -224,12 +247,12 @@ func (game *MahjongGame) processRiichi(pMain *MahjongPlayer, call Call) {
 	pMain.IppatsuStatus = true
 }
 
-func (game *MahjongGame) processChi(pMain *MahjongPlayer, call Call) {
+func (game *Game) processChi(pMain *Player, call *Call) {
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[0])
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[1])
 	tileID := call.CallTiles[2]
 	subWind := call.CallTilesFromWho[2]
-	game.PosPlayer[subWind].BoardTiles = game.PosPlayer[subWind].BoardTiles.Remove(tileID)
+	game.posPlayer[subWind].BoardTiles = game.posPlayer[subWind].BoardTiles.Remove(tileID)
 	pMain.Melds = append(pMain.Melds, call)
 
 	// 食替
@@ -256,12 +279,12 @@ func (game *MahjongGame) processChi(pMain *MahjongPlayer, call Call) {
 	pMain.JunNum++
 }
 
-func (game *MahjongGame) processPon(pMain *MahjongPlayer, call Call) {
+func (game *Game) processPon(pMain *Player, call *Call) {
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[0])
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[1])
 	tileID := call.CallTiles[2]
 	subWind := call.CallTilesFromWho[2]
-	game.PosPlayer[subWind].BoardTiles = game.PosPlayer[subWind].BoardTiles.Remove(tileID)
+	game.posPlayer[subWind].BoardTiles = game.posPlayer[subWind].BoardTiles.Remove(tileID)
 	pMain.Melds = append(pMain.Melds, call)
 	// 食替
 	tileClass := tileID / 4
@@ -275,18 +298,18 @@ func (game *MahjongGame) processPon(pMain *MahjongPlayer, call Call) {
 	pMain.JunNum++
 }
 
-func (game *MahjongGame) processDaiMinKan(pMain *MahjongPlayer, call Call) {
+func (game *Game) processDaiMinKan(pMain *Player, call *Call) {
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[0])
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[1])
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[2])
 	tileID := call.CallTiles[3]
 	subWind := call.CallTilesFromWho[3]
-	game.PosPlayer[subWind].BoardTiles = game.PosPlayer[subWind].BoardTiles.Remove(tileID)
+	game.posPlayer[subWind].BoardTiles = game.posPlayer[subWind].BoardTiles.Remove(tileID)
 
 	pMain.Melds = append(pMain.Melds, call)
 }
 
-func (game *MahjongGame) processAnKan(pMain *MahjongPlayer, call Call) {
+func (game *Game) processAnKan(pMain *Player, call *Call) {
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[0])
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[1])
 	pMain.HandTiles = pMain.HandTiles.Remove(call.CallTiles[2])
@@ -294,7 +317,7 @@ func (game *MahjongGame) processAnKan(pMain *MahjongPlayer, call Call) {
 	pMain.Melds = append(pMain.Melds, call)
 }
 
-func (game *MahjongGame) processShouMinKan(pMain *MahjongPlayer, call Call) {
+func (game *Game) processShouMinKan(pMain *Player, call *Call) {
 	tileID := call.CallTiles[3]
 	pMain.HandTiles = pMain.HandTiles.Remove(tileID)
 	for i, meld := range pMain.Melds {
@@ -310,7 +333,7 @@ func (game *MahjongGame) processShouMinKan(pMain *MahjongPlayer, call Call) {
 	panic("ShouMinKan not success!")
 }
 
-func (game *MahjongGame) judgeRiichi(pMain *MahjongPlayer) Calls {
+func (game *Game) judgeRiichi(pMain *Player) Calls {
 	if pMain.IsRiichi || (pMain.ShantenNum > 1 && pMain.JunNum > 1) || pMain.Points < 1000 {
 		return make(Calls, 0)
 	}
@@ -324,16 +347,16 @@ func (game *MahjongGame) judgeRiichi(pMain *MahjongPlayer) Calls {
 	tiles := pMain.GetRiichiTiles()
 	riichiCalls := make(Calls, 0, len(tiles))
 	for _, tileID := range tiles {
-		riichiCalls = append(riichiCalls, Call{
+		riichiCalls = append(riichiCalls, &Call{
 			CallType:         Riichi,
 			CallTiles:        Tiles{tileID, -1, -1, -1},
-			CallTilesFromWho: []int{pMain.Wind, -1, -1, -1},
+			CallTilesFromWho: []Wind{pMain.Wind, -1, -1, -1},
 		})
 	}
 	return riichiCalls
 }
 
-func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
+func (game *Game) judgeChi(pMain *Player, tileID int) Calls {
 	discardWind := game.Tiles.allTiles[tileID].discardWind
 	chiClass := tileID / 4
 	if pMain.IsRiichi || (pMain.Wind-discardWind+4)%4 != 1 || chiClass > 27 || game.Tiles.allTiles[tileID].isLast {
@@ -376,9 +399,9 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 		posCall := Call{
 			CallType:         Chi,
 			CallTiles:        Tiles{tile1ID, tile2ID, tileID, -1},
-			CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+			CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 		}
-		posCalls = append(posCalls, posCall)
+		posCalls = append(posCalls, &posCall)
 		if common.Contain(tile1ID, []int{16, 52, 88}) {
 			tile1Idx2 := handTilesClass.Index(tile1Class, tile1Idx1+1)
 			if tile1Idx2 != -1 {
@@ -386,9 +409,9 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 				posCall = Call{
 					CallType:         Chi,
 					CallTiles:        Tiles{tile1ID, tile2ID, tileID, -1},
-					CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+					CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 				}
-				posCalls = append(posCalls, posCall)
+				posCalls = append(posCalls, &posCall)
 			}
 		} else if common.Contain(tile2ID, []int{16, 52, 88}) {
 			tile2Idx2 := handTilesClass.Index(tile2Class, tile2Idx1+1)
@@ -397,9 +420,9 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 				posCall = Call{
 					CallType:         Chi,
 					CallTiles:        Tiles{tile1ID, tile2ID, tileID, -1},
-					CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+					CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 				}
-				posCalls = append(posCalls, posCall)
+				posCalls = append(posCalls, &posCall)
 			}
 		}
 	}
@@ -446,7 +469,7 @@ func (game *MahjongGame) judgeChi(pMain *MahjongPlayer, tileID int) Calls {
 	return posCalls
 }
 
-func (game *MahjongGame) judgePon(pMain *MahjongPlayer, tileID int) Calls {
+func (game *Game) judgePon(pMain *Player, tileID int) Calls {
 	if pMain.IsRiichi {
 		return make(Calls, 0)
 	}
@@ -465,9 +488,9 @@ func (game *MahjongGame) judgePon(pMain *MahjongPlayer, tileID int) Calls {
 	posCall := Call{
 		CallType:         Pon,
 		CallTiles:        Tiles{tile1ID, tile2ID, tileID, -1},
-		CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+		CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 	}
-	posCalls = append(posCalls, posCall)
+	posCalls = append(posCalls, &posCall)
 	if tileCount == 3 {
 		tile3Idx := tilesClass.Index(ponClass, tile2Idx+1)
 		if tile3Idx == -1 {
@@ -478,29 +501,29 @@ func (game *MahjongGame) judgePon(pMain *MahjongPlayer, tileID int) Calls {
 			posCall = Call{
 				CallType:         Pon,
 				CallTiles:        Tiles{tile2ID, tile3ID, tileID, -1},
-				CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+				CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 			}
-			posCalls = append(posCalls, posCall)
+			posCalls = append(posCalls, &posCall)
 		} else if common.Contain(tile2ID, []int{16, 52, 88}) {
 			posCall = Call{
 				CallType:         Pon,
 				CallTiles:        Tiles{tile1ID, tile3ID, tileID, -1},
-				CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+				CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 			}
-			posCalls = append(posCalls, posCall)
+			posCalls = append(posCalls, &posCall)
 		} else if common.Contain(tile3ID, []int{16, 52, 88}) {
 			posCall = Call{
 				CallType:         Pon,
 				CallTiles:        Tiles{tile1ID, tile3ID, tileID, -1},
-				CallTilesFromWho: []int{pMain.Wind, pMain.Wind, discardWind, -1},
+				CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, discardWind, -1},
 			}
-			posCalls = append(posCalls, posCall)
+			posCalls = append(posCalls, &posCall)
 		}
 	}
 	return posCalls
 }
 
-func (game *MahjongGame) judgeDaiMinKan(pMain *MahjongPlayer, tileID int) Calls {
+func (game *Game) judgeDaiMinKan(pMain *Player, tileID int) Calls {
 	discardWind := game.Tiles.allTiles[tileID].discardWind
 	if pMain.IsRiichi || game.Tiles.allTiles[tileID].isLast || game.Tiles.NumRemainTiles == 0 {
 		return make(Calls, 0)
@@ -523,13 +546,13 @@ func (game *MahjongGame) judgeDaiMinKan(pMain *MahjongPlayer, tileID int) Calls 
 	posCall := Call{
 		CallType:         DaiMinKan,
 		CallTiles:        Tiles{tile0, tile1, tile2, tileID},
-		CallTilesFromWho: []int{pMain.Wind, pMain.Wind, pMain.Wind, discardWind},
+		CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, pMain.Wind, discardWind},
 	}
-	posCalls = append(posCalls, posCall)
+	posCalls = append(posCalls, &posCall)
 	return posCalls
 }
 
-func (game *MahjongGame) judgeAnKan(pMain *MahjongPlayer) Calls {
+func (game *Game) judgeAnKan(pMain *Player) Calls {
 	if len(pMain.HandTiles) == 2 || game.Tiles.NumRemainTiles == 0 {
 		return make(Calls, 0)
 	}
@@ -552,15 +575,15 @@ func (game *MahjongGame) judgeAnKan(pMain *MahjongPlayer) Calls {
 			posCall := Call{
 				CallType:         AnKan,
 				CallTiles:        Tiles{pMain.HandTiles[a], pMain.HandTiles[b], pMain.HandTiles[c], pMain.HandTiles[d]},
-				CallTilesFromWho: []int{pMain.Wind, pMain.Wind, pMain.Wind, pMain.Wind},
+				CallTilesFromWho: []Wind{pMain.Wind, pMain.Wind, pMain.Wind, pMain.Wind},
 			}
-			posCalls = append(posCalls, posCall)
+			posCalls = append(posCalls, &posCall)
 		}
 	}
 	return posCalls
 }
 
-func (game *MahjongGame) judgeShouMinKan(pMain *MahjongPlayer) Calls {
+func (game *Game) judgeShouMinKan(pMain *Player) Calls {
 	if len(pMain.Melds) == 0 || game.Tiles.NumRemainTiles == 0 {
 		return make(Calls, 0)
 	}
@@ -577,19 +600,49 @@ func (game *MahjongGame) judgeShouMinKan(pMain *MahjongPlayer) Calls {
 					CallTiles:        append(call.CallTiles[:3], tileID),
 					CallTilesFromWho: append(call.CallTilesFromWho[:3], pMain.Wind),
 				}
-				posCalls = append(posCalls, posCall)
+				posCalls = append(posCalls, &posCall)
 			}
 		}
 	}
 	return posCalls
 }
 
-func (game *MahjongGame) GetNumRemainTiles() int {
+func (game *Game) getRonResult(pMain *Player, winTile int) (r *Result) {
+	defer func() {
+		if err := recover(); err != nil { // 如果recover返回为空，说明没报错
+			r = nil
+		}
+	}()
+	ctx := &yaku.Context{
+		Tile:        IntToInstance(winTile),
+		SelfWind:    base.Wind(pMain.Wind),
+		RoundWind:   base.Wind(game.WindRound / 4),
+		DoraTiles:   IntsToTiles(IndicatorsToDora(game.Tiles.DoraIndicators())),
+		UraTiles:    IntsToTiles(IndicatorsToDora(game.Tiles.UraDoraIndicators())),
+		Rules:       game.rule.yakuRule,
+		IsTsumo:     pMain.IsTsumo,
+		IsRiichi:    pMain.IsRiichi,
+		IsIpatsu:    pMain.IsIppatsu,
+		IsDaburi:    pMain.IsDaburuRiichi,
+		IsLastTile:  pMain.IsHaitei || pMain.IsHoutei,
+		IsRinshan:   pMain.IsRinshan,
+		IsFirstTake: pMain.IsTenhou,
+		IsChankan:   pMain.IsChankan,
+	}
+	yakuResult := GetYakuResult(pMain.HandTiles, pMain.Melds, ctx)
+	if yakuResult == nil {
+		return nil
+	}
+	scoreResult := score.GetScoreByResult(game.rule.scoreRule, yakuResult, score.Honba(game.NumHonba))
+	return GenerateResult(yakuResult, &scoreResult)
+}
+
+func (game *Game) GetNumRemainTiles() int {
 	return game.Tiles.NumRemainTiles
 }
 
-func (game *MahjongGame) getOtherWinds() []int {
-	otherWinds := []int{0, 1, 2, 3}
+func (game *Game) getOtherWinds() []Wind {
+	otherWinds := []Wind{0, 1, 2, 3}
 	for i, v := range otherWinds {
 		if v == game.Position {
 			otherWinds = append(otherWinds[:i], otherWinds[i+1:]...)
@@ -599,8 +652,8 @@ func (game *MahjongGame) getOtherWinds() []int {
 	return otherWinds
 }
 
-func (game *MahjongGame) breakIppatsu() {
-	for wind, player := range game.PosPlayer {
+func (game *Game) breakIppatsu() {
+	for wind, player := range game.posPlayer {
 		if wind == game.Position {
 			continue
 		}
@@ -608,8 +661,18 @@ func (game *MahjongGame) breakIppatsu() {
 	}
 }
 
-func (game *MahjongGame) breakRyuukyoku() {
-	for _, player := range game.PosPlayer {
+func (game *Game) breakRyuukyoku() {
+	for _, player := range game.posPlayer {
 		player.RyuukyokuStatus = false
 	}
+}
+
+func (game *Game) getCurrentRiichiNum() int {
+	num := 0
+	for _, player := range game.posPlayer {
+		if player.IsRiichi {
+			num++
+		}
+	}
+	return num
 }

@@ -1,10 +1,23 @@
 package mahjong
 
 import (
+	"github.com/dnovikoff/tempai-core/compact"
 	"github.com/dnovikoff/tempai-core/hand/calc"
 	"github.com/dnovikoff/tempai-core/tile"
 	"github.com/hphphp123321/mahjong-goserver/common"
 )
+
+func IntToInstance(t int) tile.Instance {
+	return tile.Instance(t + 1)
+}
+
+func IntsToInstances(tiles Tiles) tile.Instances {
+	instances := tile.Instances{}
+	for _, num := range tiles {
+		instances = append(instances, IntToInstance(num))
+	}
+	return instances
+}
 
 func IntsToTiles(tiles Tiles) tile.Tiles {
 	tilesT := tile.Tiles{}
@@ -14,7 +27,7 @@ func IntsToTiles(tiles Tiles) tile.Tiles {
 	return tilesT
 }
 
-func CallToMeld(call Call) calc.Meld {
+func CallToMeld(call *Call) calc.Meld {
 	var meld calc.Meld
 	switch call.CallType {
 	case Chi:
@@ -42,4 +55,17 @@ func CallsToMelds(melds Calls) calc.Melds {
 		meldsT = append(meldsT, CallToMeld(v))
 	}
 	return meldsT
+}
+
+func TilesCallsToCalc(tiles Tiles, calls Calls) (compact.Instances, calc.Option) {
+	hand := IntsToInstances(tiles)
+	instances := compact.NewInstances()
+	instances.Add(hand)
+
+	var meldsOpt calc.Option = nil
+	if calls != nil {
+		meldsT := CallsToMelds(calls)
+		meldsOpt = calc.Declared(meldsT)
+	}
+	return instances, meldsOpt
 }

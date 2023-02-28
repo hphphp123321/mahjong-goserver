@@ -2,6 +2,7 @@ package mahjong
 
 import (
 	"errors"
+	"math/rand"
 	"sort"
 )
 
@@ -11,13 +12,17 @@ const NumTiles int = 136
 
 type Tiles []int
 
+func (tiles Tiles) String() string {
+	return ""
+}
+
 type Tile struct {
 	tileId      int
 	tileClass   int
 	discardable bool
 	isRinshan   bool
 	isLast      bool
-	discardWind int
+	discardWind Wind
 }
 
 func newTile(tileId int) *Tile {
@@ -31,14 +36,19 @@ func newTile(tileId int) *Tile {
 }
 
 type MahjongTiles struct {
-	allTiles       [NumTiles]*Tile
+	allTiles       map[int]*Tile
 	tiles          [NumTiles]int
 	kanNum         int
 	NumRemainTiles int
+
+	tilePointer    int
+	rinshanPointer int
 }
 
 func NewMahjongTiles() *MahjongTiles {
-	mahjongTiles := MahjongTiles{}
+	mahjongTiles := MahjongTiles{
+		allTiles: make(map[int]*Tile, NumTiles),
+	}
 	mahjongTiles.Reset()
 	return &mahjongTiles
 }
@@ -49,15 +59,63 @@ func (tiles *MahjongTiles) Reset() {
 		tiles.tiles[i] = i
 	}
 
+	rand.Shuffle(NumTiles, func(i, j int) {
+		tiles.tiles[i], tiles.tiles[j] = tiles.tiles[j], tiles.tiles[i]
+	})
+
 	tiles.kanNum = 0
 	tiles.NumRemainTiles = 70
+	tiles.tilePointer = 52
+	tiles.rinshanPointer = 135
 }
 
-func (tiles *MahjongTiles) DealTile() {
+func (tiles *MahjongTiles) Setup() (tonTiles Tiles, nanTiles Tiles, shaaTiles Tiles, peiTiles Tiles) {
+	tonTiles = tiles.tiles[0:13]
+	nanTiles = tiles.tiles[13:26]
+	shaaTiles = tiles.tiles[26:39]
+	peiTiles = tiles.tiles[39:52]
+	return
+}
+
+func (tiles *MahjongTiles) DealTile(isRinshan bool) int {
 	if tiles.NumRemainTiles <= 0 {
 		panic(errors.New("no more tiles"))
 	}
+	if isRinshan && tiles.kanNum == 4 {
+		panic(errors.New("no more rinshan tiles"))
+	}
 	tiles.NumRemainTiles--
+	var tile int
+	if isRinshan {
+		tile = tiles.tiles[tiles.rinshanPointer]
+		tiles.rinshanPointer--
+		tiles.kanNum++
+		tiles.allTiles[tile].isRinshan = true
+
+	} else {
+		tile = tiles.tiles[tiles.tilePointer]
+		tiles.tilePointer++
+		if tiles.NumRemainTiles == 0 {
+			tiles.allTiles[tile].isLast = true
+		}
+	}
+	return tile
+}
+
+func (tiles *MahjongTiles) DoraIndicators() Tiles {
+	t := make(Tiles, 0, 5)
+	for i := 0; i < tiles.kanNum+1; i++ {
+		t = t.Append(tiles.tiles[130-2*i])
+	}
+	return t
+}
+
+func (tiles *MahjongTiles) UraDoraIndicators() Tiles {
+	t := make(Tiles, 0, 5)
+	for i := 0; i < tiles.kanNum+1; i++ {
+		t = t.Append(tiles.tiles[131-2*i])
+	}
+	return t
 }
 
 func (tiles Tiles) Remove(tile int) Tiles {
