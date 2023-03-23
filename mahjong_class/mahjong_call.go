@@ -1,32 +1,52 @@
 package mahjong
 
-type CallType int
+import "encoding/json"
 
-const (
-	Get CallType = -1 + iota
-	Skip
-	Discard
-	Chi
-	Pon
-	DaiMinKan
-	ShouMinKan
-	AnKan
-	Riichi
-	Ron
-	Tsumo
-	KyuShuKyuHai
-	ChanKan
-)
-
-type Calls []Call
+type Calls []*Call
 
 type Call struct {
 	CallType         CallType `json:"type"`
 	CallTiles        Tiles    `json:"tiles"`
-	CallTilesFromWho []int    `json:"who"`
+	CallTilesFromWho []Wind   `json:"who"`
 }
 
-func NewCall(meldType CallType, CallTiles Tiles, CallTilesFromWho []int) *Call {
+func (call *Call) MarshalJSON() ([]byte, error) {
+	var callTilesFromWho []string
+	for _, w := range call.CallTilesFromWho {
+		callTilesFromWho = append(callTilesFromWho, w.String())
+	}
+	return json.Marshal(&struct {
+		CallType         string   `json:"type"`
+		CallTiles        Tiles    `json:"tiles"`
+		CallTilesFromWho []string `json:"who"`
+	}{
+		CallType:         call.CallType.String(),
+		CallTiles:        call.CallTiles,
+		CallTilesFromWho: callTilesFromWho,
+	})
+}
+
+func (call *Call) UnmarshalJSON(data []byte) error {
+	var callTilesFromWho []Wind
+	var tmp struct {
+		CallType         string   `json:"type"`
+		CallTiles        Tiles    `json:"tiles"`
+		CallTilesFromWho []string `json:"who"`
+	}
+	err := json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	}
+	call.CallType = MapStringToCallType[tmp.CallType]
+	for _, w := range tmp.CallTilesFromWho {
+		callTilesFromWho = append(callTilesFromWho, MapStringToWind[w])
+	}
+	call.CallTiles = tmp.CallTiles
+	call.CallTilesFromWho = callTilesFromWho
+	return nil
+}
+
+func NewCall(meldType CallType, CallTiles Tiles, CallTilesFromWho []Wind) *Call {
 	return &Call{
 		CallType:         meldType,
 		CallTiles:        CallTiles,
@@ -34,7 +54,7 @@ func NewCall(meldType CallType, CallTiles Tiles, CallTilesFromWho []int) *Call {
 	}
 }
 
-func CallEqual(call1 Call, call2 Call) bool {
+func CallEqual(call1 *Call, call2 *Call) bool {
 	if call1.CallType != call2.CallType {
 		return false
 	}
@@ -44,7 +64,7 @@ func CallEqual(call1 Call, call2 Call) bool {
 	return false
 }
 
-func (calls *Calls) Index(call Call) int {
+func (calls *Calls) Index(call *Call) int {
 	for idx, c := range *calls {
 		if CallEqual(c, call) {
 			return idx

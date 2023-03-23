@@ -5,9 +5,9 @@ import (
 	"sort"
 )
 
-type MahjongPlayer struct {
+type Player struct {
 	Points          int
-	Wind            int
+	Wind            Wind
 	JunNum          int
 	KanNum          int
 	HandTiles       Tiles
@@ -39,31 +39,31 @@ type MahjongPlayer struct {
 	RiichiStep      int
 }
 
-func NewMahjongPlayer() *MahjongPlayer {
-	p := MahjongPlayer{}
+func NewMahjongPlayer() *Player {
+	p := Player{}
 	p.ResetForGame()
 	return &p
 }
 
-//func (player *MahjongPlayer) GetMelds() calc.Melds {
+//func (player *Player) GetMelds() calc.Melds {
 //	return CallsToMelds(player.melds)
 //}
 
-func (player *MahjongPlayer) InitTilesWind(tiles Tiles, wind int) {
+func (player *Player) InitTilesWind(tiles Tiles, wind Wind) {
 	player.HandTiles = tiles
 	sort.Ints(player.HandTiles)
 	player.Wind = wind
 }
 
-func (player *MahjongPlayer) GetShantenNum() int {
+func (player *Player) GetShantenNum() int {
 	return CalculateShantenNum(player.HandTiles, player.Melds)
 }
 
-func (player *MahjongPlayer) GetTenhaiSlice() []int {
-	return CalculateTenhaiSlice(player.TenhaiTiles, player.Melds)
+func (player *Player) GetTenhaiSlice() []int {
+	return GetTenhaiSlice(player.TenhaiTiles, player.Melds)
 }
 
-func (player *MahjongPlayer) GetRiichiTiles() Tiles {
+func (player *Player) GetRiichiTiles() Tiles {
 	if player.ShantenNum > 1 && player.JunNum > 1 {
 		panic("player's shanten num should not be greater than 1 before Riichi!")
 	}
@@ -81,7 +81,7 @@ func (player *MahjongPlayer) GetRiichiTiles() Tiles {
 	return rTiles
 }
 
-func (player *MahjongPlayer) GetHandTilesClass() []int {
+func (player *Player) GetHandTilesClass() []int {
 	tilesClass := make([]int, 0, len(player.HandTiles))
 	for _, tile := range player.HandTiles {
 		tilesClass = append(tilesClass, tile/4)
@@ -89,7 +89,7 @@ func (player *MahjongPlayer) GetHandTilesClass() []int {
 	return tilesClass
 }
 
-func (player *MahjongPlayer) IsNagashiMangan() bool {
+func (player *Player) IsNagashiMangan() bool {
 	if len(player.BoardTiles) != len(player.DiscardTiles) {
 		return false
 	}
@@ -101,11 +101,11 @@ func (player *MahjongPlayer) IsNagashiMangan() bool {
 	return true
 }
 
-func (player *MahjongPlayer) IsFuriten() bool {
+func (player *Player) IsFuriten() bool {
 	return player.JunFuriten || player.RiichiFuriten || player.DiscardFuriten
 }
 
-func (player *MahjongPlayer) ResetForRound() {
+func (player *Player) ResetForRound() {
 	player.Wind = -1
 	player.JunNum = 0
 	player.KanNum = 0
@@ -113,7 +113,7 @@ func (player *MahjongPlayer) ResetForRound() {
 	player.DiscardTiles = make(Tiles, 0, 25)
 	player.TilesTsumoGiri = make([]int, 0, 25)
 	player.BoardTiles = make(Tiles, 0, 25)
-	player.Melds = make([]Call, 0, 4)
+	player.Melds = make(Calls, 0, 4)
 	player.TenhaiTiles = make(Tiles, 0, 13)
 	player.ShantenNum = 7
 	player.TenhaiSlice = []int{}
@@ -137,7 +137,7 @@ func (player *MahjongPlayer) ResetForRound() {
 	player.RiichiStep = 0
 }
 
-func (player *MahjongPlayer) ResetForGame() {
+func (player *Player) ResetForGame() {
 	player.Points = 25000
 	player.FinalReward = -1
 	player.ResetForRound()
