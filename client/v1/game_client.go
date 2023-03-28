@@ -70,6 +70,7 @@ func (c *MahjongClient) Login() error {
 
 func (c *MahjongClient) Logout() error {
 	log.Printf("Start Logout: playerName: %s", c.P.PlayerName)
+	c.ReadyStream.CloseSend()
 	logoutReply, err := c.Client.Logout(c.Ctx, &pb.Empty{})
 	if err != nil {
 		return err

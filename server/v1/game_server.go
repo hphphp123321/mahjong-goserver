@@ -80,6 +80,7 @@ func (s *MahjongServer) Logout(ctx context.Context, in *pb.Empty) (*pb.LogoutRep
 			return nil, err
 		}
 	}
+	c.readyStream = nil
 	close(c.done)
 	s.removeClient(c)
 	log.WithFields(log.Fields{
@@ -228,7 +229,7 @@ func (s *MahjongServer) Ready(stream pb.Mahjong_ReadyServer) error {
 		return errors.New("already has ready stream")
 	}
 	c.readyStream = stream
-	log.Info("Start new ReadyStream for player: %s", c.p.PlayerName)
+	log.Infof("Start new ReadyStream for player: %s", c.p.PlayerName)
 	go func() {
 		for {
 			in, err := stream.Recv()
